@@ -1,127 +1,29 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Header } from "../landing/header"
 import { SearchBar } from "./search-bar"
 import { FilterSidebar } from "./filter-sidebar"
 import { RoomCard, type Room } from "./room-card"
-import { BookingModal, type BookingData } from "./booking-modal"
+import { BookingModal } from "./booking-modal"
 import { Footer } from "../landing/footer"
 import { toast } from "sonner"
-
-// Mock room data
-const MOCK_ROOMS: Room[] = [
-  {
-    id: "1",
-    name: "Room A001",
-    building: "Building A",
-    floor: "1st Floor",
-    capacity: 30,
-    image: "https://images.unsplash.com/photo-1497366216548-37526070297c?w=800&auto=format&fit=crop",
-    utilities: { wifi: true, ac: true, whiteboard: false, outlet: false },
-  },
-  {
-    id: "2",
-    name: "Room B001",
-    building: "Building B",
-    floor: "1st Floor",
-    capacity: 20,
-    image: "https://images.unsplash.com/photo-1497366811353-6870744d04b2?w=800&auto=format&fit=crop",
-    utilities: { wifi: true, ac: false, whiteboard: true, outlet: false },
-  },
-  {
-    id: "3",
-    name: "Room B002",
-    building: "Building B",
-    floor: "1st Floor",
-    capacity: 20,
-    image: "https://images.unsplash.com/photo-1497215728101-856f4ea42174?w=800&auto=format&fit=crop",
-    utilities: { wifi: true, ac: true, whiteboard: true, outlet: false },
-  },
-  {
-    id: "4",
-    name: "Room C001",
-    building: "Building C",
-    floor: "1st Floor",
-    capacity: 50,
-    image: "https://images.unsplash.com/photo-1497366754035-f200968a6e72?w=800&auto=format&fit=crop",
-    utilities: { wifi: true, ac: true, whiteboard: false, outlet: false },
-  },
-  {
-    id: "5",
-    name: "Room C201",
-    building: "Building C",
-    floor: "2nd Floor",
-    capacity: 50,
-    image: "https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=800&auto=format&fit=crop",
-    utilities: { wifi: true, ac: false, whiteboard: true, outlet: false },
-  },
-  {
-    id: "6",
-    name: "Room A202",
-    building: "Building A",
-    floor: "2nd Floor",
-    capacity: 50,
-    image: "https://images.unsplash.com/photo-1497366412874-3415097a27e7?w=800&auto=format&fit=crop",
-    utilities: { wifi: true, ac: true, whiteboard: false, outlet: true },
-  },
-  {
-    id: "7",
-    name: "Room B003",
-    building: "Building B",
-    floor: "1st Floor",
-    capacity: 25,
-    image: "https://images.unsplash.com/photo-1497215842964-222b430dc094?w=800&auto=format&fit=crop",
-    utilities: { wifi: true, ac: true, whiteboard: false, outlet: false },
-  },
-  {
-    id: "8",
-    name: "Room C002",
-    building: "Building C",
-    floor: "1st Floor",
-    capacity: 50,
-    image: "https://images.unsplash.com/photo-1497366858526-0766cadbe8fa?w=800&auto=format&fit=crop",
-    utilities: { wifi: true, ac: true, whiteboard: true, outlet: false },
-  },
-  {
-    id: "9",
-    name: "Room C202",
-    building: "Building C",
-    floor: "2nd Floor",
-    capacity: 50,
-    image: "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=800&auto=format&fit=crop",
-    utilities: { wifi: true, ac: true, whiteboard: false, outlet: true },
-  },
-  {
-    id: "10",
-    name: "Room A101",
-    building: "Building A",
-    floor: "1st Floor",
-    capacity: 30,
-    image: "https://images.unsplash.com/photo-1497366672149-e5e4b4d34eb3?w=800&auto=format&fit=crop",
-    utilities: { wifi: true, ac: true, whiteboard: false, outlet: false },
-  },
-  {
-    id: "11",
-    name: "Room A201",
-    building: "Building A",
-    floor: "2nd Floor",
-    capacity: 50,
-    image: "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=800&auto=format&fit=crop",
-    utilities: { wifi: true, ac: false, whiteboard: true, outlet: false },
-  },
-  {
-    id: "12",
-    name: "Room C003",
-    building: "Building C",
-    floor: "1st Floor",
-    capacity: 30,
-    image: "https://images.unsplash.com/photo-1497215728101-856f4ea42174?w=800&auto=format&fit=crop",
-    utilities: { wifi: true, ac: true, whiteboard: false, outlet: true },
-  },
-]
+import { spacesApi } from "@/lib/spaces"
+import type { SpaceListParams } from "@/schemas/api"
+import { useRequireAuth } from "@/hooks/useRequireAuth"
 
 export function SpacesPage() {
+  // Require authentication to access this page
+  const user = useRequireAuth()
+
+  // Show loading state while checking authentication
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-foreground">Loading...</div>
+      </div>
+    )
+  }
   const [searchQuery, setSearchQuery] = useState("")
   const [building, setBuilding] = useState("all")
   const [capacity, setCapacity] = useState("none")
@@ -129,46 +31,75 @@ export function SpacesPage() {
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
+  const [rooms, setRooms] = useState<Room[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [totalCount, setTotalCount] = useState(0)
   const itemsPerPage = 12
 
-  // Filter rooms based on search and filters
-  const filteredRooms = MOCK_ROOMS.filter((room) => {
-    const matchesSearch = room.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         room.building.toLowerCase().includes(searchQuery.toLowerCase())
-    
-    const matchesBuilding = building === "all" || 
-                           room.building.toLowerCase().includes(building.toLowerCase())
-    
-    let matchesCapacity = true
-    if (capacity === "1-10") matchesCapacity = room.capacity >= 1 && room.capacity <= 10
-    else if (capacity === "11-30") matchesCapacity = room.capacity >= 11 && room.capacity <= 30
-    else if (capacity === "31+") matchesCapacity = room.capacity >= 31
+  // Fetch spaces from API
+  useEffect(() => {
+    const fetchSpaces = async () => {
+      try {
+        setLoading(true)
+        setError(null)
 
-    const matchesUtility = !utility || 
-                          Object.entries(room.utilities)
-                            .some(([key, value]) => value && key.toLowerCase().includes(utility.toLowerCase()))
+        const params: SpaceListParams = {
+          limit: itemsPerPage,
+          offset: (currentPage - 1) * itemsPerPage,
+        }
 
-    return matchesSearch && matchesBuilding && matchesCapacity && matchesUtility
-  })
+        // Add search query
+        if (searchQuery) {
+          params.q = searchQuery
+        }
 
-  // Pagination
-  const totalPages = Math.ceil(filteredRooms.length / itemsPerPage)
-  const startIndex = (currentPage - 1) * itemsPerPage
-  const paginatedRooms = filteredRooms.slice(startIndex, startIndex + itemsPerPage)
+        // Add building filter
+        if (building !== "all") {
+          params.building = building
+        }
+
+        // Add capacity filters
+        if (capacity === "1-10") {
+          params.capacityMin = 1
+          params.capacityMax = 10
+        } else if (capacity === "11-30") {
+          params.capacityMin = 11
+          params.capacityMax = 30
+        } else if (capacity === "31+") {
+          params.capacityMin = 31
+        }
+
+        // Add utility filter
+        if (utility) {
+          params.utilities = utility
+        }
+
+        const response = await spacesApi.list(params)
+        setRooms(response.data)
+        setTotalCount(response.meta.total)
+      } catch (err) {
+        console.error("Error fetching spaces:", err)
+        setError("Failed to load spaces. Please try again later.")
+        toast.error("Failed to load spaces")
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchSpaces()
+  }, [searchQuery, building, capacity, utility, currentPage])
+
+  // Calculate total pages
+  const totalPages = Math.ceil(totalCount / itemsPerPage)
 
   const handleBookRoom = (room: Room) => {
     setSelectedRoom(room)
     setIsModalOpen(true)
   }
 
-  const handleConfirmBooking = (bookingData: BookingData) => {
-    toast.success(
-      `Successfully booked ${bookingData.room.name}!`,
-      {
-        description: `${bookingData.date} at ${bookingData.timeSlot} for ${bookingData.attendees} attendees`,
-        duration: 5000,
-      }
-    )
+  const handleConfirmBooking = () => {
+    // Booking was successful, refresh the spaces list
     setIsModalOpen(false)
     setSelectedRoom(null)
   }
@@ -230,42 +161,61 @@ export function SpacesPage() {
 
           {/* Room Grid */}
           <div className="flex-1">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {paginatedRooms.map((room) => (
-                <RoomCard key={room.id} room={room} onBook={handleBookRoom} />
-              ))}
-            </div>
-
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="flex justify-center items-center mt-10 gap-2">
-                <span className="text-foreground font-bold">Page</span>
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                  <button
-                    key={page}
-                    onClick={() => setCurrentPage(page)}
-                    className={`px-4 py-2 rounded-lg font-bold transition-colors ${
-                      currentPage === page
-                        ? "bg-muted text-foreground"
-                        : "text-foreground hover:bg-muted/50"
-                    }`}
-                  >
-                    {page}
-                  </button>
-                ))}
-                {currentPage < totalPages && (
-                  <button
-                    onClick={() => setCurrentPage(currentPage + 1)}
-                    className="ml-4 px-6 py-2 rounded-lg bg-foreground text-background font-bold hover:opacity-90 transition-opacity"
-                  >
-                    Next
-                  </button>
-                )}
+            {/* Loading State */}
+            {loading && (
+              <div className="text-center py-20">
+                <p className="text-xl text-muted-foreground">Loading spaces...</p>
               </div>
             )}
 
+            {/* Error State */}
+            {error && !loading && (
+              <div className="text-center py-20">
+                <p className="text-xl text-red-500">{error}</p>
+              </div>
+            )}
+
+            {/* Rooms Grid */}
+            {!loading && !error && rooms.length > 0 && (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {rooms.map((room) => (
+                    <RoomCard key={room.id} room={room} onBook={handleBookRoom} />
+                  ))}
+                </div>
+
+                {/* Pagination */}
+                {totalPages > 1 && (
+                  <div className="flex justify-center items-center mt-10 gap-2">
+                    <span className="text-foreground font-bold">Page</span>
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                      <button
+                        key={page}
+                        onClick={() => setCurrentPage(page)}
+                        className={`px-4 py-2 rounded-lg font-bold transition-colors ${
+                          currentPage === page
+                            ? "bg-muted text-foreground"
+                            : "text-foreground hover:bg-muted/50"
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    ))}
+                    {currentPage < totalPages && (
+                      <button
+                        onClick={() => setCurrentPage(currentPage + 1)}
+                        className="ml-4 px-6 py-2 rounded-lg bg-foreground text-background font-bold hover:opacity-90 transition-opacity"
+                      >
+                        Next
+                      </button>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+
             {/* No Results */}
-            {filteredRooms.length === 0 && (
+            {!loading && !error && rooms.length === 0 && (
               <div className="text-center py-20">
                 <p className="text-xl text-muted-foreground">
                   No rooms found matching your criteria.

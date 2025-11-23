@@ -5,11 +5,10 @@ import { useState } from "react"
 interface AddPenaltyModalProps {
   isOpen: boolean
   onClose: () => void
-  onSave: (penalty: { reason: string; points: number }) => void
-  userName: string
+  onSave: (penalty: { reason: string; points: number; bookingId?: number }) => void
 }
 
-export function AddPenaltyModal({ isOpen, onClose, onSave, userName }: AddPenaltyModalProps) {
+export function AddPenaltyModal({ isOpen, onClose, onSave }: AddPenaltyModalProps) {
   const [formData, setFormData] = useState({
     reason: "",
     points: ""
@@ -46,11 +45,6 @@ export function AddPenaltyModal({ isOpen, onClose, onSave, userName }: AddPenalt
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
-          </div>
-
-          <div className="mb-4 p-3 bg-muted/30 rounded-lg">
-            <span className="text-sm text-muted-foreground">User: </span>
-            <span className="text-foreground font-bold">{userName}</span>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -110,11 +104,10 @@ export function AddPenaltyModal({ isOpen, onClose, onSave, userName }: AddPenalt
 interface AddRatingModalProps {
   isOpen: boolean
   onClose: () => void
-  onSave: (rating: { rating: number; comment: string }) => void
-  userName: string
+  onSave: (rating: { rating: number; comment: string; bookingId?: number }) => void
 }
 
-export function AddRatingModal({ isOpen, onClose, onSave, userName }: AddRatingModalProps) {
+export function AddRatingModal({ isOpen, onClose, onSave }: AddRatingModalProps) {
   const [formData, setFormData] = useState({
     rating: 5,
     comment: ""
@@ -151,11 +144,6 @@ export function AddRatingModal({ isOpen, onClose, onSave, userName }: AddRatingM
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
-          </div>
-
-          <div className="mb-4 p-3 bg-muted/30 rounded-lg">
-            <span className="text-sm text-muted-foreground">User: </span>
-            <span className="text-foreground font-bold">{userName}</span>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">

@@ -3,6 +3,7 @@ import { Orbitron, Roboto } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "sonner";
+import { AuthProvider } from "@/hooks/useAuth";
 
 const orbitron = Orbitron({
   variable: "--font-heading",
@@ -37,8 +38,10 @@ export default function RootLayout({
           enableSystem={true}
           storageKey="study-space-theme"
         >
-          {children}
-          <Toaster richColors position="top-right" />
+          <AuthProvider>
+            {children}
+            <Toaster richColors position="top-right" />
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>

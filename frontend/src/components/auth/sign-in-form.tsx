@@ -2,10 +2,12 @@
 
 import { useState } from "react"
 import Link from "next/link"
+import { toast } from "sonner"
 import { Logo } from "../landing/logo"
 import { EnvelopeIcon, LockIcon } from "./auth-icons"
 import { useMobile } from "@/hooks/use-mobile"
 import { useTheme } from "next-themes"
+import { useAuth } from "@/hooks/useAuth"
 
 interface SignInFormProps {
   onSwitchToSignUp: () => void
@@ -14,13 +16,28 @@ interface SignInFormProps {
 export function SignInForm({ onSwitchToSignUp }: SignInFormProps) {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const isMobile = useMobile()
   const { theme } = useTheme()
+  const { login } = useAuth()
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    // Handle sign in logic here
-    console.log("Sign in:", { email, password })
+
+    if (!email || !password) {
+      toast.error("Please fill in all fields")
+      return
+    }
+
+    setIsSubmitting(true)
+    try {
+      await login(email, password)
+      // Navigation handled by useAuth hook
+    } catch (err: any) {
+      toast.error(err.message || "Login failed. Please check your credentials.")
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const logoColor = theme === "dark" ? "white" : "currentColor"
@@ -90,9 +107,10 @@ export function SignInForm({ onSwitchToSignUp }: SignInFormProps) {
       {/* Sign In Button */}
       <button
         type="submit"
-        className="mt-4 px-11 py-4 rounded-lg font-bold uppercase tracking-wider transition-transform active:scale-95 bg-foreground text-background border border-foreground hover:bg-background hover:text-foreground"
+        disabled={isSubmitting || !email || !password}
+        className="mt-4 px-11 py-4 rounded-lg font-bold uppercase tracking-wider transition-all active:scale-95 bg-foreground text-background border border-foreground hover:bg-background hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-foreground disabled:hover:text-background"
       >
-        Sign In
+        {isSubmitting ? "Signing In..." : "Sign In"}
       </button>
 
       {/* Mobile Only - Switch to Sign Up */}

@@ -1,21 +1,9 @@
 "use client"
 
 import Image from "next/image"
+import type { SpaceResponse } from "@/schemas/api"
 
-export interface Room {
-  id: string
-  name: string
-  building: string
-  floor: string
-  capacity: number
-  image: string
-  utilities: {
-    wifi: boolean
-    ac: boolean
-    whiteboard: boolean
-    outlet: boolean
-  }
-}
+export type Room = SpaceResponse
 
 interface RoomCardProps {
   room: Room
@@ -28,7 +16,7 @@ export function RoomCard({ room, onBook }: RoomCardProps) {
       {/* Room Image */}
       <div className="relative w-full h-[180px]">
         <Image
-          src={room.image}
+          src={room.image_url || "https://images.unsplash.com/photo-1497366216548-37526070297c?w=800&auto=format&fit=crop"}
           alt={room.name}
           fill
           className="object-cover"
@@ -54,25 +42,25 @@ export function RoomCard({ room, onBook }: RoomCardProps) {
             {room.capacity} seats
           </span>
           <div className="flex items-center gap-2">
-            {room.utilities.wifi && (
+            {room.utilities.includes("wifi") && (
               <svg className="w-5 h-5 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-label="WiFi">
                 <title>WiFi</title>
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0" />
               </svg>
             )}
-            {room.utilities.ac && (
+            {room.utilities.includes("ac") && (
               <svg className="w-5 h-5 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-label="Air Conditioner">
                 <title>Air Conditioner</title>
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
               </svg>
             )}
-            {room.utilities.whiteboard && (
+            {room.utilities.includes("whiteboard") && (
               <svg className="w-5 h-5 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-label="Whiteboard">
                 <title>Whiteboard</title>
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
               </svg>
             )}
-            {room.utilities.outlet && (
+            {room.utilities.includes("outlet") && (
               <svg className="w-5 h-5 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-label="Power Outlet">
                 <title>Power Outlet</title>
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />

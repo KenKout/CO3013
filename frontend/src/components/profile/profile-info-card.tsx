@@ -40,7 +40,7 @@ export function ProfileInfoCard({ user, isEditing, onInputChange }: ProfileInfoC
               <Icon className="w-4 h-4" />
               {label}
             </label>
-            {isEditing ? (
+            {isEditing && key !== "studentId" && key !== "email" ? (
               <input
                 type="text"
                 value={user[key]}

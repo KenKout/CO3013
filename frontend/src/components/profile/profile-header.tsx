@@ -8,16 +8,18 @@ interface User {
   studentId: string
   department: string
   profileImage: string
+  joinedDate: string
 }
 
 interface ProfileHeaderProps {
   user: User
   isEditing: boolean
+  isSubmitting?: boolean
   onEditToggle: () => void
   onCancelEdit: () => void
 }
 
-export function ProfileHeader({ user, isEditing, onEditToggle, onCancelEdit }: ProfileHeaderProps) {
+export function ProfileHeader({ user, isEditing, isSubmitting = false, onEditToggle, onCancelEdit }: ProfileHeaderProps) {
   return (
     <div className="bg-card rounded-xl border border-border p-6 mb-6 flex flex-col md:flex-row items-center gap-6">
       {/* Profile Image */}
@@ -43,6 +45,9 @@ export function ProfileHeader({ user, isEditing, onEditToggle, onCancelEdit }: P
         <p className="text-sm text-muted-foreground">
           {user.studentId} • {user.department}
         </p>
+        <p className="text-sm text-muted-foreground mt-2">
+          Member Since: {user.joinedDate}
+        </p>
       </div>
 
       {/* Edit Button */}
@@ -51,15 +56,17 @@ export function ProfileHeader({ user, isEditing, onEditToggle, onCancelEdit }: P
           <>
             <button
               onClick={onCancelEdit}
-              className="px-5 py-2.5 rounded-lg font-bold transition-all duration-300 bg-muted text-foreground border-2 border-border hover:bg-muted/80"
+              disabled={isSubmitting}
+              className="px-5 py-2.5 rounded-lg font-bold transition-all duration-300 bg-muted text-foreground border-2 border-border hover:bg-muted/80 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Cancel
             </button>
             <button
               onClick={onEditToggle}
-              className="px-5 py-2.5 rounded-lg font-bold transition-all duration-300 bg-foreground text-background border-2 border-foreground hover:bg-background hover:text-foreground"
+              disabled={isSubmitting}
+              className="px-5 py-2.5 rounded-lg font-bold transition-all duration-300 bg-foreground text-background border-2 border-foreground hover:bg-background hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Save
+              {isSubmitting ? "Saving..." : "Save"}
             </button>
           </>
         ) : (

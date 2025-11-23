@@ -1,13 +1,45 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { SignInForm } from "./sign-in-form"
 import { SignUpForm } from "./sign-up-form"
 import { useMobile } from "@/hooks/use-mobile"
+import { useAuth } from "@/hooks/useAuth"
 
 export function AuthPage() {
   const [isSignUp, setIsSignUp] = useState(false)
+  const [isRedirecting, setIsRedirecting] = useState(false)
   const isMobile = useMobile()
+  const router = useRouter()
+  const { isAuthenticated, initializing } = useAuth()
+
+  // Redirect to home if already logged in
+  useEffect(() => {
+    if (!initializing && isAuthenticated && !isRedirecting) {
+      setIsRedirecting(true)
+      // Use replace instead of push to avoid adding to history
+      router.replace("/")
+    }
+  }, [isAuthenticated, initializing, isRedirecting, router])
+
+  // Show loading state while checking authentication or redirecting
+  if (initializing || isRedirecting) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-foreground">Loading...</div>
+      </div>
+    )
+  }
+
+  // Don't render the auth forms if authenticated (redirect in progress)
+  if (isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-foreground">Redirecting...</div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-5">

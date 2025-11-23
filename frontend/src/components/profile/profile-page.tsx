@@ -5,84 +5,96 @@ import { Header } from "../landing/header"
 import { Footer } from "../landing/footer"
 import { ProfileHeader } from "./profile-header"
 import { ProfileInfoCard } from "./profile-info-card"
-import { BookingHistoryCard } from "./booking-history-card"
 import { toast } from "sonner"
+import { useRequireAuth } from "@/hooks/useRequireAuth"
+import { useAuth } from "@/hooks/useAuth"
+import type { UpdateProfileRequest } from "@/schemas/api"
 
-// Mock user data
-const MOCK_USER = {
-  id: "1",
-  name: "Alex Johnson",
-  email: "alex.johnson@university.edu",
-  studentId: "2021-12345",
-  department: "Computer Science",
-  year: "3rd Year",
-  phone: "+1 234-567-8900",
-  joinedDate: "January 2022",
-  totalBookings: 47,
-  activeBookings: 3,
-  profileImage: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400&auto=format&fit=crop",
+// Convert user fields for editing
+interface EditableUser {
+  id: number
+  name: string
+  email: string
+  studentId: string
+  department: string
+  year: string
+  phone: string
+  joinedDate: string
+  profileImage: string
 }
 
-// Mock booking history
-const MOCK_BOOKING_HISTORY = [
-  {
-    id: "1",
-    roomName: "Room A003",
-    date: "Sat, Oct 11, 2025",
-    time: "10:00 - 12:00",
-    status: "completed" as const,
-  },
-  {
-    id: "2",
-    roomName: "Library Hub",
-    date: "Wed, Oct 22, 2025",
-    time: "13:00 - 16:00",
-    status: "upcoming" as const,
-  },
-  {
-    id: "3",
-    roomName: "Room B101",
-    date: "Mon, Oct 13, 2025",
-    time: "14:00 - 15:00",
-    status: "cancelled" as const,
-  },
-  {
-    id: "4",
-    roomName: "Room A102",
-    date: "Thu, Oct 23, 2025",
-    time: "09:00 - 11:00",
-    status: "upcoming" as const,
-  },
-  {
-    id: "5",
-    roomName: "Room C205",
-    date: "Fri, Oct 10, 2025",
-    time: "09:00 - 11:00",
-    status: "completed" as const,
-  },
-]
-
 export function ProfilePage() {
-  const [user, setUser] = useState(MOCK_USER)
+  const apiUser = useRequireAuth()
+  const { updateProfile } = useAuth()
   const [isEditing, setIsEditing] = useState(false)
-  const [editedUser, setEditedUser] = useState(MOCK_USER)
+  const [editedFields, setEditedFields] = useState<Partial<EditableUser>>({})
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const handleEditToggle = () => {
+  if (!apiUser) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-xl text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Convert API user to display format
+  const user: EditableUser = {
+    id: apiUser.id,
+    name: apiUser.full_name,
+    email: apiUser.email,
+    studentId: apiUser.student_id || "",
+    department: apiUser.department || "",
+    year: apiUser.year_of_study ? `${apiUser.year_of_study}${apiUser.year_of_study === 1 ? "st" : apiUser.year_of_study === 2 ? "nd" : apiUser.year_of_study === 3 ? "rd" : "th"} Year` : "",
+    phone: apiUser.phone || "",
+    joinedDate: new Date(apiUser.joined_at).toLocaleDateString("en-US", { month: "long", year: "numeric" }),
+    profileImage: apiUser.profile_image_url || "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400&auto=format&fit=crop",
+  }
+
+  const displayUser = isEditing ? { ...user, ...editedFields } : user
+
+  const handleEditToggle = async () => {
     if (isEditing) {
       // Save changes
-      setUser(editedUser)
-      toast.success("Profile updated successfully")
+      setIsSubmitting(true)
+      try {
+        const updateData: UpdateProfileRequest = {}
+
+        if (editedFields.name) updateData.full_name = editedFields.name
+        if (editedFields.department) updateData.department = editedFields.department
+        if (editedFields.phone) updateData.phone = editedFields.phone
+        if (editedFields.profileImage) updateData.profile_image_url = editedFields.profileImage
+        if (editedFields.year) {
+          const yearMatch = editedFields.year.match(/^(\d+)/)
+          if (yearMatch) {
+            updateData.year_of_study = parseInt(yearMatch[1])
+          }
+        }
+
+        await updateProfile(updateData)
+        setEditedFields({})
+        toast.success("Profile updated successfully")
+        setIsEditing(false)
+      } catch (error) {
+        console.error("Failed to update profile:", error)
+        toast.error("Failed to update profile")
+      } finally {
+        setIsSubmitting(false)
+      }
+    } else {
+      setIsEditing(true)
     }
-    setIsEditing(!isEditing)
   }
 
   const handleCancelEdit = () => {
-    setEditedUser(user)
+    setEditedFields({})
     setIsEditing(false)
   }
 
-  const handleInputChange = (field: keyof typeof MOCK_USER, value: string) => {
-    setEditedUser((prev) => ({ ...prev, [field]: value }))
+  const handleInputChange = (field: keyof EditableUser, value: string) => {
+    setEditedFields((prev) => ({ ...prev, [field]: value }))
   }
 
   return (
@@ -121,70 +133,19 @@ export function ProfilePage() {
       <main className="container max-w-[900px] mx-auto px-5 py-10 flex-grow">
         {/* Profile Header with Avatar */}
         <ProfileHeader
-          user={isEditing ? editedUser : user}
+          user={displayUser}
           isEditing={isEditing}
+          isSubmitting={isSubmitting}
           onEditToggle={handleEditToggle}
           onCancelEdit={handleCancelEdit}
         />
 
-        {/* Profile Information Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-10">
-          {/* Personal Information */}
-          <div className="lg:col-span-2">
-            <ProfileInfoCard
-              user={isEditing ? editedUser : user}
-              isEditing={isEditing}
-              onInputChange={handleInputChange}
-            />
-          </div>
-
-          {/* Statistics Card */}
-          <div className="lg:col-span-1">
-            <div className="bg-card rounded-xl border border-border p-6">
-              <h3
-                className="text-xl font-bold text-foreground mb-6"
-                style={{ fontFamily: 'var(--font-heading, Orbitron, sans-serif)' }}
-              >
-                Statistics
-              </h3>
-              <div className="space-y-4">
-                <div className="flex justify-between items-center pb-4 border-b border-border">
-                  <span className="text-muted-foreground">Total Bookings</span>
-                  <span className="text-2xl font-bold text-foreground">
-                    {user.totalBookings}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center pb-4 border-b border-border">
-                  <span className="text-muted-foreground">Active Bookings</span>
-                  <span className="text-2xl font-bold text-green-600">
-                    {user.activeBookings}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground">Member Since</span>
-                  <span className="text-sm font-bold text-foreground">
-                    {user.joinedDate}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Booking History */}
-        <div className="bg-card rounded-xl border border-border p-6">
-          <h3
-            className="text-2xl font-bold text-foreground mb-6"
-            style={{ fontFamily: 'var(--font-heading, Orbitron, sans-serif)' }}
-          >
-            Booking History
-          </h3>
-          <div className="space-y-4">
-            {MOCK_BOOKING_HISTORY.map((booking) => (
-              <BookingHistoryCard key={booking.id} booking={booking} />
-            ))}
-          </div>
-        </div>
+        {/* Profile Information */}
+        <ProfileInfoCard
+          user={displayUser}
+          isEditing={isEditing}
+          onInputChange={handleInputChange}
+        />
       </main>
 
       {/* Footer */}

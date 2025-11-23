@@ -1,36 +1,40 @@
 "use client"
 
-import { User, BookingHistory, UserPenalty, UserRating } from "./types"
+import type { AdminUserSummaryResponse } from "@/schemas/api"
 import Image from "next/image"
 
 interface UserDetailsModalProps {
   isOpen: boolean
   onClose: () => void
-  user: User | null
-  bookingHistory: BookingHistory[]
-  penalties: UserPenalty[]
-  ratings: UserRating[]
-  onAddPenalty: (userId: string) => void
-  onAddRating: (userId: string) => void
+  user: AdminUserSummaryResponse | null
+  onAddPenalty: (userId: number) => void
+  onAddRating: (userId: number) => void
 }
 
 export function UserDetailsModal({
   isOpen,
   onClose,
   user,
-  bookingHistory,
-  penalties,
-  ratings,
   onAddPenalty,
   onAddRating
 }: UserDetailsModalProps) {
   if (!isOpen || !user) return null
 
-  const statusStyles = {
+  const { user: userInfo, booking_history, penalties, ratings } = user
+
+  const statusStyles: Record<string, string> = {
     completed: "bg-green-600 text-white",
     cancelled: "bg-red-600 text-white",
-    "no-show": "bg-orange-600 text-white"
+    no_show: "bg-orange-600 text-white"
   }
+
+  // Calculate total bookings from user data
+  const totalBookings = booking_history.length
+  
+  // Calculate average rating from ratings
+  const averageRating = ratings.length > 0
+    ? ratings.reduce((sum, r) => sum + r.rating, 0) / ratings.length
+    : 0
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 overflow-y-auto">
@@ -56,31 +60,37 @@ export function UserDetailsModal({
 
           {/* User Info */}
           <div className="flex items-center gap-4 mb-6 pb-6 border-b border-border">
-            <div className="relative w-24 h-24 rounded-full overflow-hidden flex-shrink-0 border-4 border-border">
-              <Image
-                src={user.profileImage}
-                alt={user.name}
-                fill
-                className="object-cover"
-                sizes="96px"
-              />
+            <div className="relative w-24 h-24 rounded-full overflow-hidden flex-shrink-0 border-4 border-border bg-muted">
+              {userInfo.profile_image_url ? (
+                <Image
+                  src={userInfo.profile_image_url}
+                  alt={userInfo.full_name}
+                  fill
+                  className="object-cover"
+                  sizes="96px"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-muted-foreground font-bold text-3xl">
+                  {userInfo.full_name.charAt(0).toUpperCase()}
+                </div>
+              )}
             </div>
             <div className="flex-grow">
               <div className="flex items-center gap-3 mb-2">
-                <h3 className="text-2xl font-bold text-foreground">{user.name}</h3>
+                <h3 className="text-2xl font-bold text-foreground">{userInfo.full_name}</h3>
                 <span
                   className={`px-3 py-1 rounded-full text-xs font-bold ${
-                    user.status === "active" ? "bg-green-600 text-white" : "bg-red-600 text-white"
+                    userInfo.status === "active" ? "bg-green-600 text-white" : "bg-red-600 text-white"
                   }`}
                 >
-                  {user.status}
+                  {userInfo.status}
                 </span>
               </div>
               <div className="grid grid-cols-2 gap-2 text-sm text-muted-foreground">
-                <div>{user.email}</div>
-                <div>{user.studentId}</div>
-                <div>{user.department}</div>
-                <div>{user.phone}</div>
+                <div>{userInfo.email}</div>
+                {userInfo.student_id && <div>{userInfo.student_id}</div>}
+                {userInfo.department && <div>{userInfo.department}</div>}
+                {userInfo.phone && <div>{userInfo.phone}</div>}
               </div>
             </div>
           </div>
@@ -88,12 +98,12 @@ export function UserDetailsModal({
           {/* Stats */}
           <div className="grid grid-cols-3 gap-4 mb-6">
             <div className="bg-muted/30 rounded-lg p-4 text-center">
-              <div className="text-2xl font-bold text-foreground">{user.totalBookings}</div>
+              <div className="text-2xl font-bold text-foreground">{totalBookings}</div>
               <div className="text-sm text-muted-foreground">Total Bookings</div>
             </div>
             <div className="bg-muted/30 rounded-lg p-4 text-center">
               <div className="text-2xl font-bold text-foreground flex items-center justify-center gap-1">
-                {user.averageRating.toFixed(1)}
+                {averageRating.toFixed(1)}
                 <svg className="w-5 h-5 text-yellow-500" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
                 </svg>
@@ -117,24 +127,28 @@ export function UserDetailsModal({
               Booking History
             </h3>
             <div className="space-y-2 max-h-[200px] overflow-y-auto">
-              {bookingHistory.map((booking) => (
-                <div
-                  key={booking.id}
-                  className="flex items-center justify-between p-3 rounded-lg bg-muted/30"
-                >
-                  <div>
-                    <div className="font-bold text-foreground">{booking.spaceName}</div>
-                    <div className="text-sm text-muted-foreground">
-                      {booking.date} • {booking.time}
-                    </div>
-                  </div>
-                  <span
-                    className={`px-3 py-1 rounded-full text-xs font-bold ${statusStyles[booking.status]}`}
+              {booking_history.length === 0 ? (
+                <div className="text-center text-muted-foreground py-4">No booking history</div>
+              ) : (
+                booking_history.map((booking) => (
+                  <div
+                    key={booking.id}
+                    className="flex items-center justify-between p-3 rounded-lg bg-muted/30"
                   >
-                    {booking.status}
-                  </span>
-                </div>
-              ))}
+                    <div>
+                      <div className="font-bold text-foreground">{booking.space_name}</div>
+                      <div className="text-sm text-muted-foreground">
+                        {booking.date} • {booking.time}
+                      </div>
+                    </div>
+                    <span
+                      className={`px-3 py-1 rounded-full text-xs font-bold ${statusStyles[booking.status] || "bg-gray-600 text-white"}`}
+                    >
+                      {booking.status}
+                    </span>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 
@@ -148,7 +162,7 @@ export function UserDetailsModal({
                 Penalties
               </h3>
               <button
-                onClick={() => onAddPenalty(user.id)}
+                onClick={() => onAddPenalty(userInfo.id)}
                 className="px-4 py-2 rounded-lg font-bold text-sm transition-all duration-300 bg-red-600 text-white border-2 border-red-600 hover:bg-red-700"
               >
                 Add Penalty
@@ -168,7 +182,7 @@ export function UserDetailsModal({
                       <span className="text-red-600 font-bold">{penalty.points} pts</span>
                     </div>
                     <div className="text-sm text-muted-foreground flex items-center justify-between">
-                      <span>{penalty.date}</span>
+                      <span>{new Date(penalty.created_at).toLocaleDateString()}</span>
                       <span
                         className={`px-2 py-0.5 rounded text-xs font-bold ${
                           penalty.status === "active" ? "bg-red-600 text-white" : "bg-green-600 text-white"
@@ -193,7 +207,7 @@ export function UserDetailsModal({
                 Rating History
               </h3>
               <button
-                onClick={() => onAddRating(user.id)}
+                onClick={() => onAddRating(userInfo.id)}
                 className="px-4 py-2 rounded-lg font-bold text-sm transition-all duration-300 bg-foreground text-background border-2 border-foreground hover:bg-background hover:text-foreground"
               >
                 Add Rating
@@ -207,8 +221,9 @@ export function UserDetailsModal({
                   <div key={rating.id} className="p-3 rounded-lg bg-muted/30">
                     <div className="flex items-start justify-between mb-2">
                       <div>
-                        <div className="font-bold text-foreground">{rating.spaceName}</div>
-                        <div className="text-sm text-muted-foreground">by {rating.ratedBy}</div>
+                        <div className="text-sm text-muted-foreground">
+                          {rating.created_by && `Created by Admin ID: ${rating.created_by}`}
+                        </div>
                       </div>
                       <div className="flex items-center gap-1 text-yellow-500">
                         {[...Array(5)].map((_, i) => (
@@ -225,7 +240,7 @@ export function UserDetailsModal({
                     {rating.comment && (
                       <p className="text-sm text-muted-foreground">{rating.comment}</p>
                     )}
-                    <div className="text-xs text-muted-foreground mt-1">{rating.date}</div>
+                    <div className="text-xs text-muted-foreground mt-1">{new Date(rating.created_at).toLocaleDateString()}</div>
                   </div>
                 ))
               )}

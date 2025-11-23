@@ -1,0 +1,86 @@
+from datetime import datetime
+
+from pydantic import BaseModel, Field
+
+from app.models.enums import SpaceStatus
+
+
+class UtilityResponse(BaseModel):
+    """Utility response schema."""
+    id: int
+    key: str
+    label: str
+    description: str | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class CreateUtilityRequest(BaseModel):
+    """Request schema for creating a utility."""
+    key: str = Field(min_length=1)
+    label: str = Field(min_length=1)
+    description: str | None = None
+
+
+class UpdateUtilityRequest(BaseModel):
+    """Request schema for updating a utility."""
+    label: str | None = None
+    description: str | None = None
+
+
+class SpaceResponse(BaseModel):
+    """Space response schema."""
+    id: int
+    name: str
+    building: str
+    floor: str
+    location: str | None = None
+    capacity: int
+    image_url: str | None = None
+    status: SpaceStatus
+    utilities: list[str] = []
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+    @classmethod
+    def from_orm_with_utilities(cls, space) -> "SpaceResponse":
+        """Create response from ORM model with utility keys."""
+        return cls(
+            id=space.id,
+            name=space.name,
+            building=space.building,
+            floor=space.floor,
+            location=space.location,
+            capacity=space.capacity,
+            image_url=space.image_url,
+            status=space.status,
+            utilities=[u.key for u in space.utilities],
+            created_at=space.created_at,
+            updated_at=space.updated_at,
+        )
+
+
+class CreateSpaceRequest(BaseModel):
+    """Request schema for creating a space."""
+    name: str = Field(min_length=1)
+    building: str = Field(min_length=1)
+    floor: str = Field(min_length=1)
+    location: str | None = None
+    capacity: int = Field(ge=1)
+    image_url: str | None = None
+    status: SpaceStatus = SpaceStatus.ACTIVE
+    utilities: list[str] = []
+
+
+class UpdateSpaceRequest(BaseModel):
+    """Request schema for updating a space."""
+    name: str | None = None
+    building: str | None = None
+    floor: str | None = None
+    location: str | None = None
+    capacity: int | None = Field(default=None, ge=1)
+    image_url: str | None = None
+    status: SpaceStatus | None = None
+    utilities: list[str] | None = None

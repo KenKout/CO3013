@@ -4,12 +4,15 @@
 import { useState } from "react"
 import Image from "next/image"
 import type { Room } from "./room-card"
+import { bookingsApi } from "@/lib/bookings"
+import { toast } from "sonner"
+import { ApiException } from "@/lib/api"
 
 interface BookingModalProps {
   room: Room | null
   isOpen: boolean
   onClose: () => void
-  onConfirm: (bookingData: BookingData) => void
+  onConfirm: () => void
 }
 
 export interface BookingData {
@@ -21,12 +24,67 @@ export interface BookingData {
 }
 
 export function BookingModal({ room, isOpen, onClose, onConfirm }: BookingModalProps) {
-  const [selectedDate, setSelectedDate] = useState<number>(16)
+  const today = new Date()
+  const [currentMonth, setCurrentMonth] = useState<Date>(new Date())
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<string>("")
   const [attendees, setAttendees] = useState<string>("")
   const [purpose, setPurpose] = useState<string>("")
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   if (!isOpen || !room) return null
+
+  // Get calendar days for current month
+  const getDaysInMonth = (date: Date) => {
+    const year = date.getFullYear()
+    const month = date.getMonth()
+    const firstDay = new Date(year, month, 1)
+    const lastDay = new Date(year, month + 1, 0)
+    const daysInMonth = lastDay.getDate()
+    const startingDayOfWeek = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1 // Monday = 0
+
+    return { daysInMonth, startingDayOfWeek }
+  }
+
+  const { daysInMonth, startingDayOfWeek } = getDaysInMonth(currentMonth)
+
+  const prevMonth = () => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1))
+  }
+
+  const nextMonth = () => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1))
+  }
+
+  const selectDate = (day: number) => {
+    const selected = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day)
+    // Don't allow selecting dates in the past
+    if (selected >= new Date(today.getFullYear(), today.getMonth(), today.getDate())) {
+      setSelectedDate(selected)
+    }
+  }
+
+  const isDateSelected = (day: number) => {
+    if (!selectedDate) return false
+    return selectedDate.getDate() === day &&
+      selectedDate.getMonth() === currentMonth.getMonth() &&
+      selectedDate.getFullYear() === currentMonth.getFullYear()
+  }
+
+  const isToday = (day: number) => {
+    return day === today.getDate() &&
+      currentMonth.getMonth() === today.getMonth() &&
+      currentMonth.getFullYear() === today.getFullYear()
+  }
+
+  const isPastDate = (day: number) => {
+    const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day)
+    const todayDate = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+    return date < todayDate
+  }
+
+  const monthNames = ["January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"]
 
   const timeSlots = [
     "07:00 - 08:00",
@@ -40,23 +98,56 @@ export function BookingModal({ room, isOpen, onClose, onConfirm }: BookingModalP
     "15:00 - 16:00",
   ]
 
-  const handleConfirm = () => {
-    if (!selectedTimeSlot || !attendees || !purpose) {
+  const handleConfirm = async () => {
+    if (!selectedDate || !selectedTimeSlot || !attendees || !purpose) {
+      toast.error("Please fill in all required fields")
       return
     }
 
-    onConfirm({
-      room,
-      date: `2024-10-${selectedDate}`,
-      timeSlot: selectedTimeSlot,
-      attendees: parseInt(attendees),
-      purpose,
-    })
+    try {
+      setIsSubmitting(true)
 
-    // Reset form
-    setSelectedTimeSlot("")
-    setAttendees("")
-    setPurpose("")
+      // Parse time slot (e.g., "07:00 - 08:00" -> start: "07:00:00", end: "08:00:00")
+      const [startTime, endTime] = selectedTimeSlot.split(" - ").map(t => `${t}:00`)
+
+      // Format date as YYYY-MM-DD
+      const bookingDate = selectedDate.toISOString().split('T')[0]
+
+      await bookingsApi.create({
+        space_id: room.id,
+        booking_date: bookingDate,
+        start_time: startTime,
+        end_time: endTime,
+        attendees: parseInt(attendees),
+        purpose,
+      })
+
+      toast.success(
+        `Successfully booked ${room.name}!`,
+        {
+          description: `${bookingDate} at ${selectedTimeSlot} for ${attendees} attendees`,
+          duration: 5000,
+        }
+      )
+
+      // Reset form
+      setSelectedDate(null)
+      setSelectedTimeSlot("")
+      setAttendees("")
+      setPurpose("")
+
+      onConfirm()
+      onClose()
+    } catch (err) {
+      console.error("Error creating booking:", err)
+      if (err instanceof ApiException) {
+        toast.error(`Failed to create booking: ${err.message}`)
+      } else {
+        toast.error("Failed to create booking. Please try again.")
+      }
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -81,7 +172,7 @@ export function BookingModal({ room, isOpen, onClose, onConfirm }: BookingModalP
         <header className="relative text-white p-8">
           <div className="absolute inset-0 z-0">
             <Image
-              src={room.image}
+              src={room.image_url || "https://images.unsplash.com/photo-1497366216548-37526070297c?w=800&auto=format&fit=crop"}
               alt={room.name}
               fill
               className="object-cover"
@@ -117,7 +208,7 @@ export function BookingModal({ room, isOpen, onClose, onConfirm }: BookingModalP
                 Available Utilities
               </h4>
               <div className="flex flex-wrap gap-4">
-                {room.utilities.wifi && (
+                {room.utilities.includes("wifi") && (
                   <span className="flex items-center gap-2 text-sm">
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0" />
@@ -125,7 +216,7 @@ export function BookingModal({ room, isOpen, onClose, onConfirm }: BookingModalP
                     WiFi
                   </span>
                 )}
-                {room.utilities.ac && (
+                {room.utilities.includes("ac") && (
                   <span className="flex items-center gap-2 text-sm">
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
@@ -133,7 +224,7 @@ export function BookingModal({ room, isOpen, onClose, onConfirm }: BookingModalP
                     Air Conditioner
                   </span>
                 )}
-                {room.utilities.whiteboard && (
+                {room.utilities.includes("whiteboard") && (
                   <span className="flex items-center gap-2 text-sm">
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -141,13 +232,16 @@ export function BookingModal({ room, isOpen, onClose, onConfirm }: BookingModalP
                     Whiteboard
                   </span>
                 )}
-                {room.utilities.outlet && (
+                {room.utilities.includes("outlet") && (
                   <span className="flex items-center gap-2 text-sm">
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                     </svg>
                     Power Outlet
                   </span>
+                )}
+                {room.utilities.length === 0 && (
+                  <span className="text-sm text-white/60">No utilities available</span>
                 )}
               </div>
             </div>
@@ -163,13 +257,27 @@ export function BookingModal({ room, isOpen, onClose, onConfirm }: BookingModalP
             </h3>
             <div className="bg-muted p-4 rounded-lg">
               <div className="flex justify-between items-center mb-4">
-                <svg className="w-5 h-5 cursor-pointer text-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-                <span className="font-bold text-foreground">October</span>
-                <svg className="w-5 h-5 cursor-pointer text-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
+                <button
+                  onClick={prevMonth}
+                  className="p-1 hover:bg-muted-foreground/10 rounded transition-colors"
+                  aria-label="Previous month"
+                >
+                  <svg className="w-5 h-5 text-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+                <span className="font-bold text-foreground">
+                  {monthNames[currentMonth.getMonth()]} {currentMonth.getFullYear()}
+                </span>
+                <button
+                  onClick={nextMonth}
+                  className="p-1 hover:bg-muted-foreground/10 rounded transition-colors"
+                  aria-label="Next month"
+                >
+                  <svg className="w-5 h-5 text-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
               </div>
               <div className="grid grid-cols-7 gap-2 text-center text-sm">
                 {["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"].map((day) => (
@@ -177,30 +285,28 @@ export function BookingModal({ room, isOpen, onClose, onConfirm }: BookingModalP
                     {day}
                   </div>
                 ))}
-                {[29, 30].map((day) => (
-                  <div key={`prev-${day}`} className="text-muted-foreground/50 p-2">
-                    {day}
-                  </div>
+                {/* Empty cells for days before month starts */}
+                {Array.from({ length: startingDayOfWeek }).map((_, i) => (
+                  <div key={`empty-${i}`} className="p-2" />
                 ))}
-                {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
+                {/* Days of the month */}
+                {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((day) => (
                   <button
                     key={day}
-                    onClick={() => setSelectedDate(day)}
+                    onClick={() => selectDate(day)}
+                    disabled={isPastDate(day)}
                     className={`p-2 rounded-full transition-colors font-bold ${
-                      day === selectedDate
+                      isDateSelected(day)
                         ? "bg-foreground text-background"
-                        : day === 16
+                        : isToday(day)
                         ? "bg-muted-foreground/20 text-foreground"
+                        : isPastDate(day)
+                        ? "text-muted-foreground/30 cursor-not-allowed"
                         : "text-foreground hover:bg-muted-foreground/10"
                     }`}
                   >
                     {day}
                   </button>
-                ))}
-                {[1, 2].map((day) => (
-                  <div key={`next-${day}`} className="text-muted-foreground/50 p-2">
-                    {day}
-                  </div>
                 ))}
               </div>
             </div>
@@ -267,14 +373,15 @@ export function BookingModal({ room, isOpen, onClose, onConfirm }: BookingModalP
           <div className="flex flex-col items-center w-[250px]">
             <button
               onClick={handleConfirm}
-              disabled={!selectedTimeSlot || !attendees || !purpose}
+              disabled={!selectedDate || !selectedTimeSlot || !attendees || !purpose || isSubmitting}
               className="w-full py-4 rounded-2xl bg-foreground text-background font-bold transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Confirm Booking
+              {isSubmitting ? "Creating Booking..." : "Confirm Booking"}
             </button>
             <button
               onClick={onClose}
-              className="mt-5 bg-none border-none p-0 text-muted-foreground font-bold transition-colors hover:text-foreground hover:underline cursor-pointer"
+              disabled={isSubmitting}
+              className="mt-5 bg-none border-none p-0 text-muted-foreground font-bold transition-colors hover:text-foreground hover:underline cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Cancel
             </button>

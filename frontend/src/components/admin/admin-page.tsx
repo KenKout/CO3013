@@ -1,67 +1,218 @@
 "use client"
 
-import { useState, useMemo } from "react"
-import { AdminHeader } from "./admin-header"
+import { useState, useEffect, useCallback } from "react"
+import { Header } from "../landing/header"
 import { Footer } from "../landing/footer"
-import { SpaceList } from "./space-list"
-import { SpaceFormModal } from "./space-form-modal"
-import { UserList } from "./user-list"
-import { UserDetailsModal } from "./user-details-modal"
-import { ReservationList } from "./reservation-list"
-import { PenaltiesList } from "./penalties-list"
-import { RatingsList } from "./ratings-list"
-import { AddPenaltyModal, AddRatingModal } from "./penalty-rating-modals"
-import { Pagination } from "./pagination"
 import { SearchBar } from "./search-bar"
+import { Pagination } from "./pagination"
+import { AdminSpaceList } from "./admin-space-list"
+import { AdminUserList } from "./admin-user-list"
+import { AdminReservationList } from "./admin-reservation-list"
+import { AdminPenaltiesList } from "./admin-penalties-list"
+import { AdminRatingsList } from "./admin-ratings-list"
+import { SpaceFormModal } from "./space-form-modal"
+import { UserDetailsModal } from "./user-details-modal"
+import { AddPenaltyModal, AddRatingModal } from "./penalty-rating-modals"
 import { toast } from "sonner"
+import { useRequireAdmin } from "@/hooks/useRequireAdmin"
+import { adminApi } from "@/lib/admin"
+import { spacesApi } from "@/lib/spaces"
+import { bookingsApi } from "@/lib/bookings"
+import { penaltiesApi } from "@/lib/penalties"
+import { ratingsApi } from "@/lib/ratings"
+import { utilitiesApi } from "@/lib/utilities"
 import {
-  MOCK_SPACES,
-  MOCK_USERS,
-  MOCK_RESERVATIONS,
-  MOCK_PENALTIES,
-  MOCK_RATINGS,
-  MOCK_USER_BOOKING_HISTORY,
-  MOCK_USER_PENALTIES,
-  MOCK_USER_RATINGS
-} from "./mock-data"
-import { Space, User } from "./types"
+  type UserSummaryResponse,
+  type SpaceResponse,
+  type BookingResponse,
+  type PenaltyResponse,
+  type RatingResponse,
+  type UtilityResponse,
+  type UserStatus,
+  type SpaceStatus,
+  BookingStatus,
+  PenaltyStatus,
+  type CreateSpaceRequest,
+  type UpdateSpaceRequest,
+  type AdminUserSummaryResponse,
+} from "@/schemas/api"
 
 type TabType = "spaces" | "users" | "reservations" | "penalties" | "ratings"
 
 export function AdminPage() {
+  const admin = useRequireAdmin()
   const [activeTab, setActiveTab] = useState<TabType>("spaces")
-  const [spaces, setSpaces] = useState(MOCK_SPACES)
-  const [users, setUsers] = useState(MOCK_USERS)
-  const [reservations, setReservations] = useState(MOCK_RESERVATIONS)
-  const [penalties, setPenalties] = useState(MOCK_PENALTIES)
-  const [ratings, setRatings] = useState(MOCK_RATINGS)
 
-  // Pagination and search states
-  const [spacesPage, setSpacesPage] = useState(1)
-  const [usersPage, setUsersPage] = useState(1)
-  const [reservationsPage, setReservationsPage] = useState(1)
-  const [penaltiesPage, setPenaltiesPage] = useState(1)
-  const [ratingsPage, setRatingsPage] = useState(1)
-  
-  const [itemsPerPage, setItemsPerPage] = useState(10)
+  // Data states
+  const [spaces, setSpaces] = useState<SpaceResponse[]>([])
+  const [users, setUsers] = useState<UserSummaryResponse[]>([])
+  const [reservations, setReservations] = useState<BookingResponse[]>([])
+  const [penalties, setPenalties] = useState<PenaltyResponse[]>([])
+  const [ratings, setRatings] = useState<RatingResponse[]>([])
+  const [utilities, setUtilities] = useState<UtilityResponse[]>([])
+
+  // Pagination states
+  const [spacesPage, setSpacesPage] = useState(0)
+  const [usersPage, setUsersPage] = useState(0)
+  const [reservationsPage, setReservationsPage] = useState(0)
+  const [penaltiesPage, setPenaltiesPage] = useState(0)
+  const [ratingsPage, setRatingsPage] = useState(0)
+
+  const [itemsPerPage, setItemsPerPage] = useState(20)
+
+  // Total counts for pagination
+  const [spacesTotal, setSpacesTotal] = useState(0)
+  const [usersTotal, setUsersTotal] = useState(0)
+  const [reservationsTotal, setReservationsTotal] = useState(0)
+  const [penaltiesTotal, setPenaltiesTotal] = useState(0)
+  const [ratingsTotal, setRatingsTotal] = useState(0)
+
+  // Search states
   const [spacesSearch, setSpacesSearch] = useState("")
   const [usersSearch, setUsersSearch] = useState("")
   const [reservationsSearch, setReservationsSearch] = useState("")
   const [penaltiesSearch, setPenaltiesSearch] = useState("")
   const [ratingsSearch, setRatingsSearch] = useState("")
 
-  // Space modals
-  const [isSpaceModalOpen, setIsSpaceModalOpen] = useState(false)
-  const [editingSpace, setEditingSpace] = useState<Space | null>(null)
+  // Filter states
+  const [spacesStatusFilter, setSpacesStatusFilter] = useState<SpaceStatus | "all">("all")
 
-  // User modals
+  // Loading states
+  const [loading, setLoading] = useState(false)
+
+  // Modals
+  const [selectedUser, setSelectedUser] = useState<AdminUserSummaryResponse | null>(null)
   const [isUserDetailsOpen, setIsUserDetailsOpen] = useState(false)
-  const [selectedUser, setSelectedUser] = useState<User | null>(null)
-
-  // Penalty/Rating modals
+  const [isSpaceModalOpen, setIsSpaceModalOpen] = useState(false)
+  const [editingSpace, setEditingSpace] = useState<SpaceResponse | null>(null)
   const [isPenaltyModalOpen, setIsPenaltyModalOpen] = useState(false)
   const [isRatingModalOpen, setIsRatingModalOpen] = useState(false)
-  const [targetUserId, setTargetUserId] = useState<string>("")
+  const [targetUserId, setTargetUserId] = useState<number>(0)
+
+  // Fetch utilities on mount
+  useEffect(() => {
+    const fetchUtilities = async () => {
+      try {
+        const data = await utilitiesApi.list()
+        setUtilities(data)
+      } catch (error) {
+        console.error("Failed to fetch utilities:", error)
+      }
+    }
+    fetchUtilities()
+  }, [])
+
+  // Fetch spaces
+  const fetchSpaces = useCallback(async () => {
+    setLoading(true)
+    try {
+      const data = await spacesApi.list({
+        limit: itemsPerPage,
+        offset: spacesPage * itemsPerPage,
+        q: spacesSearch || undefined,
+        status: spacesStatusFilter === "all" ? undefined : spacesStatusFilter,
+      })
+      setSpaces(data.data)
+      setSpacesTotal(data.meta.total)
+    } catch (error: any) {
+      toast.error(error.message || "Failed to fetch spaces")
+    } finally {
+      setLoading(false)
+    }
+  }, [spacesPage, itemsPerPage, spacesSearch, spacesStatusFilter])
+
+  // Fetch users
+  const fetchUsers = useCallback(async () => {
+    setLoading(true)
+    try {
+      const data = await adminApi.listUsers({
+        limit: itemsPerPage,
+        offset: usersPage * itemsPerPage,
+        q: usersSearch || undefined,
+      })
+      setUsers(data.data)
+      setUsersTotal(data.meta.total)
+    } catch (error: any) {
+      toast.error(error.message || "Failed to fetch users")
+    } finally {
+      setLoading(false)
+    }
+  }, [usersPage, itemsPerPage, usersSearch])
+
+  // Fetch reservations (bookings)
+  const fetchReservations = useCallback(async () => {
+    setLoading(true)
+    try {
+      const data = await bookingsApi.list({
+        limit: itemsPerPage,
+        offset: reservationsPage * itemsPerPage,
+        my: false, // Admin should see all bookings
+      })
+      setReservations(data.data)
+      setReservationsTotal(data.meta.total)
+    } catch (error: any) {
+      toast.error(error.message || "Failed to fetch reservations")
+    } finally {
+      setLoading(false)
+    }
+  }, [reservationsPage, itemsPerPage])
+
+  // Fetch penalties
+  const fetchPenalties = useCallback(async () => {
+    setLoading(true)
+    try {
+      const data = await penaltiesApi.list({
+        limit: itemsPerPage,
+        offset: penaltiesPage * itemsPerPage,
+        q: penaltiesSearch || undefined,
+      })
+      setPenalties(data.data)
+      setPenaltiesTotal(data.meta.total)
+    } catch (error: any) {
+      toast.error(error.message || "Failed to fetch penalties")
+    } finally {
+      setLoading(false)
+    }
+  }, [penaltiesPage, itemsPerPage, penaltiesSearch])
+
+  // Fetch ratings
+  const fetchRatings = useCallback(async () => {
+    setLoading(true)
+    try {
+      const data = await ratingsApi.list({
+        limit: itemsPerPage,
+        offset: ratingsPage * itemsPerPage,
+        q: ratingsSearch || undefined,
+      })
+      setRatings(data.data)
+      setRatingsTotal(data.meta.total)
+    } catch (error: any) {
+      toast.error(error.message || "Failed to fetch ratings")
+    } finally {
+      setLoading(false)
+    }
+  }, [ratingsPage, itemsPerPage, ratingsSearch])
+
+  // Fetch data when tab changes
+  useEffect(() => {
+    switch (activeTab) {
+      case "spaces":
+        fetchSpaces()
+        break
+      case "users":
+        fetchUsers()
+        break
+      case "reservations":
+        fetchReservations()
+        break
+      case "penalties":
+        fetchPenalties()
+        break
+      case "ratings":
+        fetchRatings()
+        break
+    }
+  }, [activeTab, fetchSpaces, fetchUsers, fetchReservations, fetchPenalties, fetchRatings])
 
   // Space handlers
   const handleAddSpace = () => {
@@ -69,269 +220,181 @@ export function AdminPage() {
     setIsSpaceModalOpen(true)
   }
 
-  const handleEditSpace = (space: Space) => {
+  const handleEditSpace = (space: SpaceResponse) => {
     setEditingSpace(space)
     setIsSpaceModalOpen(true)
   }
 
-  const handleSaveSpace = (spaceData: Partial<Space>) => {
-    if (editingSpace) {
-      setSpaces(spaces.map(s => s.id === editingSpace.id ? { ...s, ...spaceData } : s))
-      toast.success("Space updated successfully")
-    } else {
-      const newSpace = {
-        ...spaceData,
-        id: Date.now().toString()
-      } as Space
-      setSpaces([...spaces, newSpace])
-      toast.success("Space created successfully")
+  const handleSaveSpace = async (spaceData: CreateSpaceRequest | UpdateSpaceRequest) => {
+    try {
+      if (editingSpace) {
+        await spacesApi.update(editingSpace.id, spaceData as UpdateSpaceRequest)
+        toast.success("Space updated successfully")
+      } else {
+        await spacesApi.create(spaceData as CreateSpaceRequest)
+        toast.success("Space created successfully")
+      }
+      setIsSpaceModalOpen(false)
+      fetchSpaces()
+    } catch (error: any) {
+      toast.error(error.message || "Failed to save space")
     }
   }
 
-  const handleDeleteSpace = (id: string) => {
-    setSpaces(spaces.filter(s => s.id !== id))
-    toast.success("Space deleted successfully")
+  const handleDeleteSpace = async (id: number) => {
+    if (!confirm("Are you sure you want to delete this space?")) return
+
+    try {
+      await spacesApi.delete(id)
+      toast.success("Space deleted successfully")
+      fetchSpaces()
+    } catch (error: any) {
+      toast.error(error.message || "Failed to delete space")
+    }
   }
 
-  const handleToggleSpaceStatus = (id: string) => {
-    setSpaces(spaces.map(s => 
-      s.id === id ? { ...s, status: s.status === "active" ? "inactive" : "active" } : s
-    ))
-    toast.success("Space status updated")
+  const handleToggleSpaceStatus = async (id: number, currentStatus: SpaceStatus) => {
+    try {
+      const newStatus = currentStatus === "active" ? "inactive" : "active"
+      await spacesApi.update(id, { status: newStatus as SpaceStatus })
+      toast.success("Space status updated")
+      fetchSpaces()
+    } catch (error: any) {
+      toast.error(error.message || "Failed to update space status")
+    }
   }
 
   // User handlers
-  const handleViewUserDetails = (user: User) => {
-    setSelectedUser(user)
-    setIsUserDetailsOpen(true)
+  const handleViewUserDetails = async (user: UserSummaryResponse) => {
+    try {
+      const summary = await adminApi.getUserSummary(user.id)
+      setSelectedUser(summary)
+      setIsUserDetailsOpen(true)
+    } catch (error: any) {
+      toast.error(error.message || "Failed to fetch user details")
+    }
   }
 
-  const handleToggleUserStatus = (id: string) => {
-    setUsers(users.map(u => 
-      u.id === id ? { ...u, status: u.status === "active" ? "suspended" : "active" } : u
-    ))
-    toast.success("User status updated")
+  const handleToggleUserStatus = async (id: number, currentStatus: UserStatus) => {
+    try {
+      const newStatus = currentStatus === "active" ? "suspended" : "active"
+      await adminApi.updateUser(id, { status: newStatus as UserStatus })
+      toast.success("User status updated")
+      fetchUsers()
+    } catch (error: any) {
+      toast.error(error.message || "Failed to update user status")
+    }
   }
 
   // Reservation handlers
-  const handleApproveReservation = (id: string) => {
-    setReservations(reservations.map(r => 
-      r.id === id ? { ...r, status: "approved" } : r
-    ))
-    toast.success("Reservation approved")
+  const handleApproveReservation = async (id: number) => {
+    try {
+      await bookingsApi.updateStatus(id, { status: BookingStatus.APPROVED })
+      toast.success("Reservation approved")
+      fetchReservations()
+    } catch (error: any) {
+      toast.error(error.message || "Failed to approve reservation")
+    }
   }
 
-  const handleRejectReservation = (id: string) => {
-    setReservations(reservations.map(r =>
-      r.id === id ? { ...r, status: "rejected" } : r
-    ))
-    toast.success("Reservation rejected")
+  const handleRejectReservation = async (id: number) => {
+    try {
+      await bookingsApi.updateStatus(id, { status: BookingStatus.REJECTED })
+      toast.success("Reservation rejected")
+      fetchReservations()
+    } catch (error: any) {
+      toast.error(error.message || "Failed to reject reservation")
+    }
   }
 
-  const handleCompleteReservation = (id: string) => {
-    setReservations(reservations.map(r =>
-      r.id === id ? { ...r, status: "completed" } : r
-    ))
-    toast.success("Reservation marked as completed")
+  const handleCompleteReservation = async (id: number) => {
+    try {
+      await bookingsApi.updateStatus(id, { status: BookingStatus.COMPLETED })
+      toast.success("Reservation marked as completed")
+      fetchReservations()
+    } catch (error: any) {
+      toast.error(error.message || "Failed to complete reservation")
+    }
   }
 
-  const handleAddRatingForReservation = (userId: string, reservationId: string) => {
+  const handleAddRatingForReservation = (userId: number, reservationId: number) => {
     setTargetUserId(userId)
     setIsRatingModalOpen(true)
-    
-    // Update the rating modal to include reservation info
-    const reservation = reservations.find(r => r.id === reservationId)
-    if (reservation) {
-      // We'll pass this info to the modal when we create the rating
-      console.log("Adding rating for reservation:", reservationId, "User:", userId)
-    }
   }
 
-  const handleAddPenaltyForReservation = (userId: string, reservationId: string) => {
+  const handleAddPenaltyForReservation = (userId: number, reservationId: number) => {
     setTargetUserId(userId)
     setIsPenaltyModalOpen(true)
-    
-    // Update the penalty modal to include reservation info
-    const reservation = reservations.find(r => r.id === reservationId)
-    if (reservation) {
-      // We'll pass this info to the modal when we create the penalty
-      console.log("Adding penalty for reservation:", reservationId, "User:", userId)
-    }
   }
 
   // Penalty handlers
-  const handleOpenAddPenalty = (userId: string) => {
+  const handleOpenAddPenalty = (userId: number) => {
     setTargetUserId(userId)
     setIsPenaltyModalOpen(true)
     setIsUserDetailsOpen(false)
   }
 
-  const handleAddPenalty = (penaltyData: { reason: string; points: number }) => {
-    const user = users.find(u => u.id === targetUserId)
-    if (!user) return
-
-    // Find the most recent reservation for this user to associate with the penalty
-    const userReservations = reservations.filter(r => r.userId === targetUserId && r.status === "completed")
-    const latestReservation = userReservations[userReservations.length - 1]
-
-    const newPenalty = {
-      id: Date.now().toString(),
-      userId: targetUserId,
-      userName: user.name,
-      reservationId: latestReservation?.id || "N/A",
-      spaceName: latestReservation?.spaceName || "N/A",
-      reason: penaltyData.reason,
-      points: penaltyData.points,
-      date: new Date().toISOString().split('T')[0],
-      status: "active" as const
+  const handleAddPenalty = async (penaltyData: { reason: string; points: number; bookingId?: number }) => {
+    try {
+      await penaltiesApi.create({
+        user_id: targetUserId,
+        booking_id: penaltyData.bookingId || null,
+        reason: penaltyData.reason,
+        points: penaltyData.points,
+      })
+      toast.success("Penalty added successfully")
+      setIsPenaltyModalOpen(false)
+      if (activeTab === "penalties") {
+        fetchPenalties()
+      }
+      if (selectedUser) {
+        const updated = await adminApi.getUserSummary(targetUserId)
+        setSelectedUser(updated)
+        setIsUserDetailsOpen(true)
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Failed to add penalty")
     }
-    setPenalties([...penalties, newPenalty])
-    toast.success("Penalty added successfully")
   }
 
-  const handleResolvePenalty = (id: string) => {
-    setPenalties(penalties.map(p => 
-      p.id === id ? { ...p, status: "resolved" } : p
-    ))
-    toast.success("Penalty resolved")
+  const handleResolvePenalty = async (id: number) => {
+    try {
+      await penaltiesApi.update(id, { status: PenaltyStatus.RESOLVED })
+      toast.success("Penalty resolved")
+      fetchPenalties()
+    } catch (error: any) {
+      toast.error(error.message || "Failed to resolve penalty")
+    }
   }
 
   // Rating handlers
-  const handleOpenAddRating = (userId: string) => {
+  const handleOpenAddRating = (userId: number) => {
     setTargetUserId(userId)
     setIsRatingModalOpen(true)
     setIsUserDetailsOpen(false)
   }
 
-  const handleAddRating = (ratingData: { rating: number; comment: string }) => {
-    const user = users.find(u => u.id === targetUserId)
-    if (!user) return
-
-    // Find the most recent reservation for this user to associate with the rating
-    const userReservations = reservations.filter(r => r.userId === targetUserId && r.status === "completed")
-    const latestReservation = userReservations[userReservations.length - 1]
-
-    const newRating = {
-      id: Date.now().toString(),
-      userId: targetUserId,
-      userName: user.name,
-      reservationId: latestReservation?.id || "N/A",
-      spaceName: latestReservation?.spaceName || "N/A",
-      rating: ratingData.rating,
-      comment: ratingData.comment,
-      date: new Date().toISOString().split('T')[0],
-      ratedBy: "Admin Staff"
-    }
-    setRatings([...ratings, newRating])
-    toast.success("Rating added successfully")
-  }
-
-  // Enhanced reservations with user ratings
-  const enhancedReservations = useMemo(() => {
-    return reservations.map(reservation => {
-      const user = users.find(u => u.id === reservation.userId)
-      return {
-        ...reservation,
-        userRating: user?.averageRating
+  const handleAddRating = async (ratingData: { rating: number; comment: string; bookingId?: number }) => {
+    try {
+      await ratingsApi.create({
+        rated_user_id: targetUserId,
+        booking_id: ratingData.bookingId || null,
+        rating: ratingData.rating,
+        comment: ratingData.comment || null,
+      })
+      toast.success("Rating added successfully")
+      setIsRatingModalOpen(false)
+      if (activeTab === "ratings") {
+        fetchRatings()
       }
-    })
-  }, [reservations, users])
-
-  // Filtered and paginated data
-  const filteredSpaces = useMemo(() => {
-    return spaces.filter(space =>
-      space.name.toLowerCase().includes(spacesSearch.toLowerCase()) ||
-      space.location.toLowerCase().includes(spacesSearch.toLowerCase()) ||
-      space.utilities.some(util => util.toLowerCase().includes(spacesSearch.toLowerCase()))
-    )
-  }, [spaces, spacesSearch])
-
-  const filteredUsers = useMemo(() => {
-    return users.filter(user =>
-      user.name.toLowerCase().includes(usersSearch.toLowerCase()) ||
-      user.email.toLowerCase().includes(usersSearch.toLowerCase()) ||
-      user.studentId.toLowerCase().includes(usersSearch.toLowerCase()) ||
-      user.department.toLowerCase().includes(usersSearch.toLowerCase())
-    )
-  }, [users, usersSearch])
-
-  const filteredReservations = useMemo(() => {
-    return enhancedReservations.filter(reservation =>
-      reservation.userName.toLowerCase().includes(reservationsSearch.toLowerCase()) ||
-      reservation.spaceName.toLowerCase().includes(reservationsSearch.toLowerCase()) ||
-      reservation.purpose.toLowerCase().includes(reservationsSearch.toLowerCase()) ||
-      reservation.status.toLowerCase().includes(reservationsSearch.toLowerCase())
-    )
-  }, [enhancedReservations, reservationsSearch])
-
-  const filteredPenalties = useMemo(() => {
-    return penalties.filter(penalty =>
-      penalty.userName.toLowerCase().includes(penaltiesSearch.toLowerCase()) ||
-      penalty.reason.toLowerCase().includes(penaltiesSearch.toLowerCase()) ||
-      penalty.spaceName.toLowerCase().includes(penaltiesSearch.toLowerCase()) ||
-      penalty.status.toLowerCase().includes(penaltiesSearch.toLowerCase())
-    )
-  }, [penalties, penaltiesSearch])
-
-  const filteredRatings = useMemo(() => {
-    return ratings.filter(rating =>
-      rating.userName.toLowerCase().includes(ratingsSearch.toLowerCase()) ||
-      rating.comment.toLowerCase().includes(ratingsSearch.toLowerCase()) ||
-      rating.spaceName.toLowerCase().includes(ratingsSearch.toLowerCase()) ||
-      rating.ratedBy.toLowerCase().includes(ratingsSearch.toLowerCase())
-    )
-  }, [ratings, ratingsSearch])
-
-  // Paginated data
-  const paginatedSpaces = useMemo(() => {
-    const startIndex = (spacesPage - 1) * itemsPerPage
-    return filteredSpaces.slice(startIndex, startIndex + itemsPerPage)
-  }, [filteredSpaces, spacesPage, itemsPerPage])
-
-  const paginatedUsers = useMemo(() => {
-    const startIndex = (usersPage - 1) * itemsPerPage
-    return filteredUsers.slice(startIndex, startIndex + itemsPerPage)
-  }, [filteredUsers, usersPage, itemsPerPage])
-
-  const paginatedReservations = useMemo(() => {
-    const startIndex = (reservationsPage - 1) * itemsPerPage
-    return filteredReservations.slice(startIndex, startIndex + itemsPerPage)
-  }, [filteredReservations, reservationsPage, itemsPerPage])
-
-  const paginatedPenalties = useMemo(() => {
-    const startIndex = (penaltiesPage - 1) * itemsPerPage
-    return filteredPenalties.slice(startIndex, startIndex + itemsPerPage)
-  }, [filteredPenalties, penaltiesPage, itemsPerPage])
-
-  const paginatedRatings = useMemo(() => {
-    const startIndex = (ratingsPage - 1) * itemsPerPage
-    return filteredRatings.slice(startIndex, startIndex + itemsPerPage)
-  }, [filteredRatings, ratingsPage, itemsPerPage])
-
-  // Reset page when search changes
-  const handleSpacesSearch = (query: string) => {
-    setSpacesSearch(query)
-    setSpacesPage(1)
-  }
-
-  const handleUsersSearch = (query: string) => {
-    setUsersSearch(query)
-    setUsersPage(1)
-  }
-
-  const handleReservationsSearch = (query: string) => {
-    setReservationsSearch(query)
-    setReservationsPage(1)
-  }
-
-  const handlePenaltiesSearch = (query: string) => {
-    setPenaltiesSearch(query)
-    setPenaltiesPage(1)
-  }
-
-  const handleRatingsSearch = (query: string) => {
-    setRatingsSearch(query)
-    setRatingsPage(1)
+      if (selectedUser) {
+        const updated = await adminApi.getUserSummary(targetUserId)
+        setSelectedUser(updated)
+        setIsUserDetailsOpen(true)
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Failed to add rating")
+    }
   }
 
   const tabs = [
@@ -342,21 +405,32 @@ export function AdminPage() {
     { id: "ratings" as TabType, label: "Ratings", icon: "⭐" }
   ]
 
+  // Protect the page - show loading while checking auth
+  if (!admin) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-xl text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Hero Section with Header */}
-      <div className="relative min-h-[300px] flex flex-col bg-background">
+      <div className="relative min-h-[400px] flex flex-col bg-background">
         <div
           className="absolute inset-0 z-0 bg-cover bg-center opacity-100"
           style={{
-            backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.85)), url('https://images.unsplash.com/photo-1497366216548-37526070297c?q=80&w=2071&auto=format&fit=crop')`,
+            backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.85)), url('https://images.unsplash.com/photo-1534796636912-3b95b3ab5986?q=80&w=2071&auto=format&fit=crop')`,
           }}
         />
-        
+
         <div className="relative z-10 flex flex-col">
-          <AdminHeader />
-          
-          <div className="flex flex-col justify-center items-center text-center px-5 py-12">
+          <Header />
+
+          <div className="flex flex-col justify-center items-center text-center px-5 py-20">
             <div className="container max-w-[1400px] mx-auto">
               <h1
                 className="text-4xl md:text-5xl font-bold mb-4 text-white"
@@ -398,12 +472,7 @@ export function AdminPage() {
           {activeTab === "spaces" && (
             <>
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-                <h2
-                  className="text-2xl font-bold text-foreground"
-                  style={{ fontFamily: 'var(--font-heading, Orbitron, sans-serif)' }}
-                >
-                  Manage Spaces
-                </h2>
+                <h2 className="text-2xl font-bold">Manage Spaces</h2>
                 <button
                   onClick={handleAddSpace}
                   className="px-5 py-2.5 rounded-lg font-bold transition-all duration-300 bg-foreground text-background border-2 border-foreground hover:bg-background hover:text-foreground"
@@ -413,187 +482,278 @@ export function AdminPage() {
               </div>
               <div className="mb-6">
                 <SearchBar
-                  onSearch={handleSpacesSearch}
-                  placeholder="Search spaces by name, location, or utilities..."
+                  onSearch={(query) => {
+                    setSpacesSearch(query)
+                    setSpacesPage(0)
+                  }}
+                  placeholder="Search spaces by name or building..."
                 />
               </div>
-              <SpaceList
-                spaces={paginatedSpaces}
-                onEdit={handleEditSpace}
-                onDelete={handleDeleteSpace}
-                onToggleStatus={handleToggleSpaceStatus}
-              />
-              <Pagination
-                currentPage={spacesPage}
-                totalPages={Math.ceil(filteredSpaces.length / itemsPerPage)}
-                onPageChange={setSpacesPage}
-                itemsPerPage={itemsPerPage}
-                onItemsPerPageChange={setItemsPerPage}
-              />
+              <div className="mb-6">
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="text-sm font-bold text-muted-foreground">Filter by Status:</span>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => {
+                        setSpacesStatusFilter("all")
+                        setSpacesPage(0)
+                      }}
+                      className={`px-4 py-2 rounded-lg font-bold text-sm transition-all duration-300 ${
+                        spacesStatusFilter === "all"
+                          ? "bg-foreground text-background border-2 border-foreground"
+                          : "bg-transparent text-foreground border-2 border-border hover:bg-muted"
+                      }`}
+                    >
+                      All
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSpacesStatusFilter("active" as SpaceStatus)
+                        setSpacesPage(0)
+                      }}
+                      className={`px-4 py-2 rounded-lg font-bold text-sm transition-all duration-300 ${
+                        spacesStatusFilter === "active"
+                          ? "bg-green-600 text-white border-2 border-green-600"
+                          : "bg-transparent text-green-600 border-2 border-green-600 hover:bg-green-50 dark:hover:bg-green-950"
+                      }`}
+                    >
+                      Active
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSpacesStatusFilter("inactive" as SpaceStatus)
+                        setSpacesPage(0)
+                      }}
+                      className={`px-4 py-2 rounded-lg font-bold text-sm transition-all duration-300 ${
+                        spacesStatusFilter === "inactive"
+                          ? "bg-red-600 text-white border-2 border-red-600"
+                          : "bg-transparent text-red-600 border-2 border-red-600 hover:bg-red-50 dark:hover:bg-red-950"
+                      }`}
+                    >
+                      Inactive
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSpacesStatusFilter("maintenance" as SpaceStatus)
+                        setSpacesPage(0)
+                      }}
+                      className={`px-4 py-2 rounded-lg font-bold text-sm transition-all duration-300 ${
+                        spacesStatusFilter === "maintenance"
+                          ? "bg-yellow-600 text-white border-2 border-yellow-600"
+                          : "bg-transparent text-yellow-600 border-2 border-yellow-600 hover:bg-yellow-50 dark:hover:bg-yellow-950"
+                      }`}
+                    >
+                      Maintenance
+                    </button>
+                  </div>
+                </div>
+              </div>
+              {loading ? (
+                <div className="text-center py-10">
+                  <p className="text-muted-foreground">Loading...</p>
+                </div>
+              ) : (
+                <>
+                  <AdminSpaceList
+                    spaces={spaces}
+                    onEdit={handleEditSpace}
+                    onDelete={handleDeleteSpace}
+                    onToggleStatus={handleToggleSpaceStatus}
+                  />
+                  <Pagination
+                    currentPage={spacesPage + 1}
+                    totalPages={Math.ceil(spacesTotal / itemsPerPage)}
+                    onPageChange={(page) => setSpacesPage(page - 1)}
+                    itemsPerPage={itemsPerPage}
+                    onItemsPerPageChange={setItemsPerPage}
+                  />
+                </>
+              )}
             </>
           )}
 
           {/* Users Tab */}
           {activeTab === "users" && (
             <>
-              <h2
-                className="text-2xl font-bold text-foreground mb-6"
-                style={{ fontFamily: 'var(--font-heading, Orbitron, sans-serif)' }}
-              >
-                Manage Users
-              </h2>
+              <h2 className="text-2xl font-bold mb-6">Manage Users</h2>
               <div className="mb-6">
                 <SearchBar
-                  onSearch={handleUsersSearch}
-                  placeholder="Search users by name, email, student ID, or department..."
+                  onSearch={(query) => {
+                    setUsersSearch(query)
+                    setUsersPage(0)
+                  }}
+                  placeholder="Search users by name, email, or student ID..."
                 />
               </div>
-              <UserList
-                users={paginatedUsers}
-                onViewDetails={handleViewUserDetails}
-                onToggleStatus={handleToggleUserStatus}
-              />
-              <Pagination
-                currentPage={usersPage}
-                totalPages={Math.ceil(filteredUsers.length / itemsPerPage)}
-                onPageChange={setUsersPage}
-                itemsPerPage={itemsPerPage}
-                onItemsPerPageChange={setItemsPerPage}
-              />
+              {loading ? (
+                <div className="text-center py-10">
+                  <p className="text-muted-foreground">Loading...</p>
+                </div>
+              ) : (
+                <>
+                  <AdminUserList
+                    users={users}
+                    onViewDetails={handleViewUserDetails}
+                    onToggleStatus={handleToggleUserStatus}
+                  />
+                  <Pagination
+                    currentPage={usersPage + 1}
+                    totalPages={Math.ceil(usersTotal / itemsPerPage)}
+                    onPageChange={(page) => setUsersPage(page - 1)}
+                    itemsPerPage={itemsPerPage}
+                    onItemsPerPageChange={setItemsPerPage}
+                  />
+                </>
+              )}
             </>
           )}
 
           {/* Reservations Tab */}
           {activeTab === "reservations" && (
             <>
-              <h2
-                className="text-2xl font-bold text-foreground mb-6"
-                style={{ fontFamily: 'var(--font-heading, Orbitron, sans-serif)' }}
-              >
-                Manage Reservations
-              </h2>
+              <h2 className="text-2xl font-bold mb-6">Manage Reservations</h2>
               <div className="mb-6">
                 <SearchBar
-                  onSearch={handleReservationsSearch}
-                  placeholder="Search reservations by user, space, purpose, or status..."
+                  onSearch={(query) => {
+                    setReservationsSearch(query)
+                    setReservationsPage(0)
+                  }}
+                  placeholder="Search reservations..."
                 />
               </div>
-              <ReservationList
-                reservations={paginatedReservations}
-                onApprove={handleApproveReservation}
-                onReject={handleRejectReservation}
-                onComplete={handleCompleteReservation}
-                onAddRating={handleAddRatingForReservation}
-                onAddPenalty={handleAddPenaltyForReservation}
-              />
-              <Pagination
-                currentPage={reservationsPage}
-                totalPages={Math.ceil(filteredReservations.length / itemsPerPage)}
-                onPageChange={setReservationsPage}
-                itemsPerPage={itemsPerPage}
-                onItemsPerPageChange={setItemsPerPage}
-              />
+              {loading ? (
+                <div className="text-center py-10">
+                  <p className="text-muted-foreground">Loading...</p>
+                </div>
+              ) : (
+                <>
+                  <AdminReservationList
+                    reservations={reservations}
+                    onApprove={handleApproveReservation}
+                    onReject={handleRejectReservation}
+                    onComplete={handleCompleteReservation}
+                    onAddRating={handleAddRatingForReservation}
+                    onAddPenalty={handleAddPenaltyForReservation}
+                  />
+                  <Pagination
+                    currentPage={reservationsPage + 1}
+                    totalPages={Math.ceil(reservationsTotal / itemsPerPage)}
+                    onPageChange={(page) => setReservationsPage(page - 1)}
+                    itemsPerPage={itemsPerPage}
+                    onItemsPerPageChange={setItemsPerPage}
+                  />
+                </>
+              )}
             </>
           )}
 
           {/* Penalties Tab */}
           {activeTab === "penalties" && (
             <>
-              <h2
-                className="text-2xl font-bold text-foreground mb-6"
-                style={{ fontFamily: 'var(--font-heading, Orbitron, sans-serif)' }}
-              >
-                System Penalties
-              </h2>
+              <h2 className="text-2xl font-bold mb-6">System Penalties</h2>
               <div className="mb-6">
                 <SearchBar
-                  onSearch={handlePenaltiesSearch}
-                  placeholder="Search penalties by user, reason, space, or status..."
+                  onSearch={(query) => {
+                    setPenaltiesSearch(query)
+                    setPenaltiesPage(0)
+                  }}
+                  placeholder="Search penalties by reason..."
                 />
               </div>
-              <PenaltiesList
-                penalties={paginatedPenalties}
-                onResolve={handleResolvePenalty}
-              />
-              <Pagination
-                currentPage={penaltiesPage}
-                totalPages={Math.ceil(filteredPenalties.length / itemsPerPage)}
-                onPageChange={setPenaltiesPage}
-                itemsPerPage={itemsPerPage}
-                onItemsPerPageChange={setItemsPerPage}
-              />
+              {loading ? (
+                <div className="text-center py-10">
+                  <p className="text-muted-foreground">Loading...</p>
+                </div>
+              ) : (
+                <>
+                  <AdminPenaltiesList
+                    penalties={penalties}
+                    onResolve={handleResolvePenalty}
+                  />
+                  <Pagination
+                    currentPage={penaltiesPage + 1}
+                    totalPages={Math.ceil(penaltiesTotal / itemsPerPage)}
+                    onPageChange={(page) => setPenaltiesPage(page - 1)}
+                    itemsPerPage={itemsPerPage}
+                    onItemsPerPageChange={setItemsPerPage}
+                  />
+                </>
+              )}
             </>
           )}
 
           {/* Ratings Tab */}
           {activeTab === "ratings" && (
             <>
-              <h2
-                className="text-2xl font-bold text-foreground mb-6"
-                style={{ fontFamily: 'var(--font-heading, Orbitron, sans-serif)' }}
-              >
-                System Ratings
-              </h2>
+              <h2 className="text-2xl font-bold mb-6">System Ratings</h2>
               <div className="mb-6">
                 <SearchBar
-                  onSearch={handleRatingsSearch}
-                  placeholder="Search ratings by user, comment, space, or rated by..."
+                  onSearch={(query) => {
+                    setRatingsSearch(query)
+                    setRatingsPage(0)
+                  }}
+                  placeholder="Search ratings by comment..."
                 />
               </div>
-              <RatingsList ratings={paginatedRatings} />
-              <Pagination
-                currentPage={ratingsPage}
-                totalPages={Math.ceil(filteredRatings.length / itemsPerPage)}
-                onPageChange={setRatingsPage}
-                itemsPerPage={itemsPerPage}
-                onItemsPerPageChange={setItemsPerPage}
-              />
+              {loading ? (
+                <div className="text-center py-10">
+                  <p className="text-muted-foreground">Loading...</p>
+                </div>
+              ) : (
+                <>
+                  <AdminRatingsList ratings={ratings} />
+                  <Pagination
+                    currentPage={ratingsPage + 1}
+                    totalPages={Math.ceil(ratingsTotal / itemsPerPage)}
+                    onPageChange={(page) => setRatingsPage(page - 1)}
+                    itemsPerPage={itemsPerPage}
+                    onItemsPerPageChange={setItemsPerPage}
+                  />
+                </>
+              )}
             </>
           )}
         </div>
       </main>
 
-      {/* Footer */}
       <Footer />
 
       {/* Modals */}
-      <SpaceFormModal
-        isOpen={isSpaceModalOpen}
-        onClose={() => setIsSpaceModalOpen(false)}
-        onSave={handleSaveSpace}
-        space={editingSpace}
-      />
+      {isSpaceModalOpen && (
+        <SpaceFormModal
+          isOpen={isSpaceModalOpen}
+          onClose={() => setIsSpaceModalOpen(false)}
+          onSave={handleSaveSpace}
+          space={editingSpace}
+          utilities={utilities}
+        />
+      )}
 
-      <UserDetailsModal
-        isOpen={isUserDetailsOpen}
-        onClose={() => setIsUserDetailsOpen(false)}
-        user={selectedUser}
-        bookingHistory={selectedUser ? MOCK_USER_BOOKING_HISTORY[selectedUser.id] || [] : []}
-        penalties={selectedUser ? MOCK_USER_PENALTIES[selectedUser.id] || [] : []}
-        ratings={selectedUser ? MOCK_USER_RATINGS[selectedUser.id] || [] : []}
-        onAddPenalty={handleOpenAddPenalty}
-        onAddRating={handleOpenAddRating}
-      />
+      {isUserDetailsOpen && selectedUser && (
+        <UserDetailsModal
+          isOpen={isUserDetailsOpen}
+          onClose={() => setIsUserDetailsOpen(false)}
+          user={selectedUser}
+          onAddPenalty={handleOpenAddPenalty}
+          onAddRating={handleOpenAddRating}
+        />
+      )}
 
-      <AddPenaltyModal
-        isOpen={isPenaltyModalOpen}
-        onClose={() => {
-          setIsPenaltyModalOpen(false)
-          if (selectedUser) setIsUserDetailsOpen(true)
-        }}
-        onSave={handleAddPenalty}
-        userName={users.find(u => u.id === targetUserId)?.name || ""}
-      />
+      {isPenaltyModalOpen && (
+        <AddPenaltyModal
+          isOpen={isPenaltyModalOpen}
+          onClose={() => setIsPenaltyModalOpen(false)}
+          onSave={handleAddPenalty}
+        />
+      )}
 
-      <AddRatingModal
-        isOpen={isRatingModalOpen}
-        onClose={() => {
-          setIsRatingModalOpen(false)
-          if (selectedUser) setIsUserDetailsOpen(true)
-        }}
-        onSave={handleAddRating}
-        userName={users.find(u => u.id === targetUserId)?.name || ""}
-      />
+      {isRatingModalOpen && (
+        <AddRatingModal
+          isOpen={isRatingModalOpen}
+          onClose={() => setIsRatingModalOpen(false)}
+          onSave={handleAddRating}
+        />
+      )}
     </div>
   )
 }

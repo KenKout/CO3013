@@ -1,63 +1,94 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Space } from "./types"
+import { SpaceStatus } from "@/schemas/api"
+import type { SpaceResponse, CreateSpaceRequest, UpdateSpaceRequest, UtilityResponse } from "@/schemas/api"
 
 interface SpaceFormModalProps {
   isOpen: boolean
   onClose: () => void
-  onSave: (space: Partial<Space>) => void
-  space?: Space | null
+  onSave: (space: CreateSpaceRequest | UpdateSpaceRequest) => void
+  space?: SpaceResponse | null
+  utilities: UtilityResponse[]
 }
 
-export function SpaceFormModal({ isOpen, onClose, onSave, space }: SpaceFormModalProps) {
+export function SpaceFormModal({ isOpen, onClose, onSave, space, utilities }: SpaceFormModalProps) {
   const [formData, setFormData] = useState({
     name: "",
+    building: "",
+    floor: "",
     location: "",
     capacity: "",
-    pricePerHour: "",
-    utilities: "",
-    image: "",
-    status: "active" as "active" | "inactive"
+    image_url: "",
+    status: SpaceStatus.ACTIVE as SpaceStatus,
+    selectedUtilities: [] as string[]
   })
 
   useEffect(() => {
     if (space) {
       setFormData({
         name: space.name,
-        location: space.location,
+        building: space.building,
+        floor: space.floor,
+        location: space.location || "",
         capacity: space.capacity.toString(),
-        pricePerHour: space.pricePerHour.toString(),
-        utilities: space.utilities.join(", "),
-        image: space.image,
-        status: space.status
+        image_url: space.image_url || "",
+        status: space.status,
+        selectedUtilities: space.utilities || []
       })
     } else {
       setFormData({
         name: "",
+        building: "",
+        floor: "",
         location: "",
         capacity: "",
-        pricePerHour: "",
-        utilities: "",
-        image: "",
-        status: "active"
+        image_url: "",
+        status: SpaceStatus.ACTIVE,
+        selectedUtilities: []
       })
     }
   }, [space])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    onSave({
-      id: space?.id,
-      name: formData.name,
-      location: formData.location,
-      capacity: parseInt(formData.capacity),
-      pricePerHour: parseInt(formData.pricePerHour),
-      utilities: formData.utilities.split(",").map(u => u.trim()),
-      image: formData.image,
-      status: formData.status
-    })
+    if (space) {
+      // Update existing space
+      const updateData: UpdateSpaceRequest = {
+        name: formData.name,
+        building: formData.building,
+        floor: formData.floor,
+        location: formData.location || null,
+        capacity: parseInt(formData.capacity),
+        image_url: formData.image_url || null,
+        status: formData.status,
+        utilities: formData.selectedUtilities
+      }
+      onSave(updateData)
+    } else {
+      // Create new space
+      const createData: CreateSpaceRequest = {
+        name: formData.name,
+        building: formData.building,
+        floor: formData.floor,
+        location: formData.location || null,
+        capacity: parseInt(formData.capacity),
+        image_url: formData.image_url || null,
+        status: formData.status,
+        utilities: formData.selectedUtilities
+      }
+      onSave(createData)
+    }
     onClose()
+  }
+
+  const toggleUtility = (key: string) => {
+    setFormData(prev => ({
+      ...prev,
+      selectedUtilities: prev.selectedUtilities.includes(key)
+        ? prev.selectedUtilities.filter(k => k !== key)
+        : [...prev.selectedUtilities, key]
+    }))
   }
 
   if (!isOpen) return null
@@ -99,18 +130,33 @@ export function SpaceFormModal({ isOpen, onClose, onSave, space }: SpaceFormModa
 
             <div>
               <label className="block text-sm font-bold text-muted-foreground mb-2">
-                Location
+                Building
               </label>
               <input
                 type="text"
-                value={formData.location}
-                onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                value={formData.building}
+                onChange={(e) => setFormData({ ...formData, building: e.target.value })}
                 className="w-full px-4 py-2.5 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-foreground/20"
                 required
+                placeholder="e.g., Building A"
               />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-bold text-muted-foreground mb-2">
+                  Floor
+                </label>
+                <input
+                  type="text"
+                  value={formData.floor}
+                  onChange={(e) => setFormData({ ...formData, floor: e.target.value })}
+                  className="w-full px-4 py-2.5 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-foreground/20"
+                  required
+                  placeholder="e.g., 3"
+                />
+              </div>
+
               <div>
                 <label className="block text-sm font-bold text-muted-foreground mb-2">
                   Capacity
@@ -124,46 +170,50 @@ export function SpaceFormModal({ isOpen, onClose, onSave, space }: SpaceFormModa
                   min="1"
                 />
               </div>
-
-              <div>
-                <label className="block text-sm font-bold text-muted-foreground mb-2">
-                  Price per Hour ($)
-                </label>
-                <input
-                  type="number"
-                  value={formData.pricePerHour}
-                  onChange={(e) => setFormData({ ...formData, pricePerHour: e.target.value })}
-                  className="w-full px-4 py-2.5 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-foreground/20"
-                  required
-                  min="0"
-                />
-              </div>
             </div>
 
             <div>
               <label className="block text-sm font-bold text-muted-foreground mb-2">
-                Utilities (comma-separated)
+                Location (Optional)
               </label>
               <input
                 type="text"
-                value={formData.utilities}
-                onChange={(e) => setFormData({ ...formData, utilities: e.target.value })}
+                value={formData.location}
+                onChange={(e) => setFormData({ ...formData, location: e.target.value })}
                 className="w-full px-4 py-2.5 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-foreground/20"
-                placeholder="WiFi, Whiteboard, Projector"
-                required
+                placeholder="e.g., Room A003"
               />
             </div>
 
             <div>
               <label className="block text-sm font-bold text-muted-foreground mb-2">
-                Image URL
+                Utilities
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                {utilities.map((utility) => (
+                  <label key={utility.key} className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.selectedUtilities.includes(utility.key)}
+                      onChange={() => toggleUtility(utility.key)}
+                      className="rounded border-border"
+                    />
+                    <span className="text-sm text-foreground">{utility.label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-bold text-muted-foreground mb-2">
+                Image URL (Optional)
               </label>
               <input
                 type="url"
-                value={formData.image}
-                onChange={(e) => setFormData({ ...formData, image: e.target.value })}
+                value={formData.image_url}
+                onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
                 className="w-full px-4 py-2.5 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-foreground/20"
-                required
+                placeholder="https://example.com/image.jpg"
               />
             </div>
 
@@ -173,11 +223,12 @@ export function SpaceFormModal({ isOpen, onClose, onSave, space }: SpaceFormModa
               </label>
               <select
                 value={formData.status}
-                onChange={(e) => setFormData({ ...formData, status: e.target.value as "active" | "inactive" })}
+                onChange={(e) => setFormData({ ...formData, status: e.target.value as SpaceStatus })}
                 className="w-full px-4 py-2.5 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-foreground/20"
               >
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
+                <option value={SpaceStatus.ACTIVE}>Active</option>
+                <option value={SpaceStatus.INACTIVE}>Inactive</option>
+                <option value={SpaceStatus.MAINTENANCE}>Maintenance</option>
               </select>
             </div>
 

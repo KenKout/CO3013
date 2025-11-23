@@ -1,11 +1,12 @@
 "use client"
 
 import Image from "next/image"
+import { BookingStatus } from "@/schemas/api"
 
-export type BookingStatus = "approved" | "waitlist" | "dismissed"
+export { BookingStatus }
 
 export interface Booking {
-  id: string
+  id: number
   roomName: string
   roomImage: string
   status: BookingStatus
@@ -14,28 +15,35 @@ export interface Booking {
   location: string
   attendees: number
   utilities: string[]
+  purpose?: string
 }
 
 interface BookingCardProps {
   booking: Booking
-  onDelete: (id: string) => void
+  onDelete: (id: number) => void
   onClick?: (booking: Booking) => void
 }
 
 export function BookingCard({ booking, onDelete, onClick }: BookingCardProps) {
-  const statusStyles = {
-    approved: "bg-green-600 text-white",
-    waitlist: "bg-blue-600 text-white",
-    dismissed: "bg-red-600 text-white",
+  const statusStyles: Record<BookingStatus, string> = {
+    [BookingStatus.PENDING]: "bg-yellow-600 text-white",
+    [BookingStatus.APPROVED]: "bg-green-600 text-white",
+    [BookingStatus.REJECTED]: "bg-red-600 text-white",
+    [BookingStatus.CANCELLED]: "bg-gray-600 text-white",
+    [BookingStatus.COMPLETED]: "bg-blue-600 text-white",
+    [BookingStatus.NO_SHOW]: "bg-orange-600 text-white",
   }
 
-  const statusLabels = {
-    approved: "Approved",
-    waitlist: "Waitlist",
-    dismissed: "Dismissed",
+  const statusLabels: Record<BookingStatus, string> = {
+    [BookingStatus.PENDING]: "Pending",
+    [BookingStatus.APPROVED]: "Approved",
+    [BookingStatus.REJECTED]: "Rejected",
+    [BookingStatus.CANCELLED]: "Cancelled",
+    [BookingStatus.COMPLETED]: "Completed",
+    [BookingStatus.NO_SHOW]: "No Show",
   }
 
-  const isClickable = booking.status === "approved"
+  const isClickable = booking.status === BookingStatus.APPROVED
 
   return (
     <div
@@ -111,21 +119,23 @@ export function BookingCard({ booking, onDelete, onClick }: BookingCardProps) {
         </div>
       </div>
 
-      {/* Delete Button */}
-      <div className="flex items-center justify-center p-4 md:pr-5">
-        <button
-          onClick={(e) => {
-            e.stopPropagation()
-            onDelete(booking.id)
-          }}
-          className="text-muted-foreground hover:text-red-600 transition-colors text-xl"
-          aria-label="Delete booking"
-        >
-          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-          </svg>
-        </button>
-      </div>
+      {/* Delete Button - Only show for pending bookings */}
+      {booking.status === BookingStatus.PENDING && (
+        <div className="flex items-center justify-center p-4 md:pr-5">
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onDelete(booking.id)
+            }}
+            className="text-muted-foreground hover:text-red-600 transition-colors text-xl"
+            aria-label="Cancel booking"
+          >
+            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+          </button>
+        </div>
+      )}
     </div>
   )
 }
