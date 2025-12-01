@@ -71,8 +71,20 @@ async def add_penalty(
     # Verify booking exists if provided
     if request.booking_id:
         booking_result = await db.execute(select(Booking).where(Booking.id == request.booking_id))
-        if not booking_result.scalar_one_or_none():
+        booking = booking_result.scalar_one_or_none()
+        if not booking:
             raise NotFoundException(detail="Booking not found")
+
+        # Verify the booking belongs to the penalized user
+        if booking.user_id != request.user_id:
+            raise BadRequestException(detail="Booking does not belong to the penalized user")
+
+        # Check if a penalty already exists for this booking
+        existing_penalty = await db.execute(
+            select(UserPenalty).where(UserPenalty.booking_id == request.booking_id)
+        )
+        if existing_penalty.scalar_one_or_none():
+            raise BadRequestException(detail="A penalty already exists for this booking")
 
     penalty = UserPenalty(
         user_id=request.user_id,
@@ -97,16 +109,39 @@ async def update_penalty(
     current_user: Annotated[User, Depends(get_current_admin_user)],
     db: Annotated[AsyncSession, Depends(get_async_db)]
 ):
-    """Update penalty status (admin only)."""
+    """Update penalty (admin only)."""
     result = await db.execute(select(UserPenalty).where(UserPenalty.id == penalty_id))
     penalty = result.scalar_one_or_none()
 
     if not penalty:
         raise NotFoundException(detail="Penalty not found")
 
-    penalty.status = request.status
+    # Update fields if provided
+    if request.reason is not None:
+        penalty.reason = request.reason
+    if request.points is not None:
+        penalty.points = request.points
+    if request.status is not None:
+        penalty.status = request.status
 
     await db.flush()
     await db.refresh(penalty)
 
     return PenaltyResponse.model_validate(penalty)
+
+
+@router.delete("/{penalty_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_penalty(
+    penalty_id: int,
+    current_user: Annotated[User, Depends(get_current_admin_user)],
+    db: Annotated[AsyncSession, Depends(get_async_db)]
+):
+    """Delete a penalty (admin only)."""
+    result = await db.execute(select(UserPenalty).where(UserPenalty.id == penalty_id))
+    penalty = result.scalar_one_or_none()
+
+    if not penalty:
+        raise NotFoundException(detail="Penalty not found")
+
+    await db.delete(penalty)
+    await db.flush()

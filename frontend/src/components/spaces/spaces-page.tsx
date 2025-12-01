@@ -9,21 +9,15 @@ import { BookingModal } from "./booking-modal"
 import { Footer } from "../landing/footer"
 import { toast } from "sonner"
 import { spacesApi } from "@/lib/spaces"
-import type { SpaceListParams } from "@/schemas/api"
+import { utilitiesApi } from "@/lib/utilities"
+import type { SpaceListParams, UtilityResponse } from "@/schemas/api"
 import { useRequireAuth } from "@/hooks/useRequireAuth"
 
 export function SpacesPage() {
   // Require authentication to access this page
   const user = useRequireAuth()
 
-  // Show loading state while checking authentication
-  if (!user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-foreground">Loading...</div>
-      </div>
-    )
-  }
+  // Initialize all state hooks BEFORE any conditional returns (Rules of Hooks)
   const [searchQuery, setSearchQuery] = useState("")
   const [building, setBuilding] = useState("all")
   const [capacity, setCapacity] = useState("none")
@@ -35,10 +29,38 @@ export function SpacesPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [totalCount, setTotalCount] = useState(0)
+  const [buildings, setBuildings] = useState<string[]>([])
+  const [floors, setFloors] = useState<string[]>([])
+  const [utilities, setUtilities] = useState<UtilityResponse[]>([])
   const itemsPerPage = 12
+
+  // Fetch filter configuration on mount
+  useEffect(() => {
+    const fetchFilterConfig = async () => {
+      try {
+        const [config, utilitiesList] = await Promise.all([
+          spacesApi.getFilterConfig(),
+          utilitiesApi.list(),
+        ])
+        setBuildings(config.buildings)
+        setFloors(config.floors)
+        setUtilities(utilitiesList)
+      } catch (err) {
+        console.error("Error fetching filter config:", err)
+        // Silent fail - filter will just be empty
+      }
+    }
+
+    fetchFilterConfig()
+  }, [])
 
   // Fetch spaces from API
   useEffect(() => {
+    // Only fetch if user is authenticated
+    if (!user) {
+      return
+    }
+
     const fetchSpaces = async () => {
       try {
         setLoading(true)
@@ -88,7 +110,16 @@ export function SpacesPage() {
     }
 
     fetchSpaces()
-  }, [searchQuery, building, capacity, utility, currentPage])
+  }, [user, searchQuery, building, capacity, utility, currentPage])
+
+  // Show loading state while checking authentication
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-foreground">Loading...</div>
+      </div>
+    )
+  }
 
   // Calculate total pages
   const totalPages = Math.ceil(totalCount / itemsPerPage)
@@ -153,6 +184,8 @@ export function SpacesPage() {
             building={building}
             capacity={capacity}
             utility={utility}
+            buildings={buildings}
+            utilities={utilities}
             onBuildingChange={setBuilding}
             onCapacityChange={setCapacity}
             onUtilityChange={setUtility}

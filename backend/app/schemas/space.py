@@ -84,3 +84,9 @@ class UpdateSpaceRequest(BaseModel):
     image_url: str | None = None
     status: SpaceStatus | None = None
     utilities: list[str] | None = None
+
+
+class SpaceFilterConfigResponse(BaseModel):
+    """Response schema for space filter configuration."""
+    buildings: list[str]
+    floors: list[str]

@@ -7,10 +7,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_async_db
 from app.core.exceptions import NotFoundException, BadRequestException
 from app.dependencies import get_current_admin_user
-from app.models import UserRating, User, Booking
+from app.models import UserRating, User, Booking, BookingStatus
 from app.schemas import (
     RatingResponse,
     AddRatingRequest,
+    UpdateRatingRequest,
 )
 from app.schemas.common import PaginatedResponse, PaginatedResponseMeta
 
@@ -74,7 +75,11 @@ async def add_rating(
         # Verify the booking belongs to the user being rated
         if booking.user_id != request.rated_user_id:
             raise BadRequestException(detail="Booking does not belong to the user being rated")
-        
+
+        # Verify the booking is completed
+        if booking.status != BookingStatus.COMPLETED:
+            raise BadRequestException(detail="Can only rate completed bookings")
+
         # Check if a rating already exists for this booking
         existing_rating = await db.execute(
             select(UserRating).where(UserRating.booking_id == request.booking_id)
@@ -91,6 +96,30 @@ async def add_rating(
     )
 
     db.add(rating)
+    await db.flush()
+    await db.refresh(rating)
+
+    return RatingResponse.model_validate(rating)
+
+
+@router.patch("/{rating_id}", response_model=RatingResponse)
+async def update_rating(
+    rating_id: int,
+    request: UpdateRatingRequest,
+    current_user: Annotated[User, Depends(get_current_admin_user)],
+    db: Annotated[AsyncSession, Depends(get_async_db)]
+):
+    """Update a rating (admin only)."""
+    result = await db.execute(select(UserRating).where(UserRating.id == rating_id))
+    rating = result.scalar_one_or_none()
+
+    if not rating:
+        raise NotFoundException(detail="Rating not found")
+
+    # Update rating fields
+    rating.rating = request.rating
+    rating.comment = request.comment
+
     await db.flush()
     await db.refresh(rating)
 

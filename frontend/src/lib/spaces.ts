@@ -6,6 +6,7 @@ import type {
   CreateSpaceRequest,
   UpdateSpaceRequest,
   PaginatedResponse,
+  SpaceFilterConfigResponse,
 } from '@/schemas/api';
 
 // ============================================================================
@@ -13,6 +14,13 @@ import type {
 // ============================================================================
 
 export const spacesApi = {
+  /**
+   * Get filter configuration (available buildings and floors)
+   */
+  getFilterConfig: async (): Promise<SpaceFilterConfigResponse> => {
+    return api.get<SpaceFilterConfigResponse>('/spaces/config/filters', undefined, false);
+  },
+
   /**
    * List spaces with optional filters and pagination
    */

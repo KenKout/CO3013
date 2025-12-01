@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, status
@@ -128,6 +128,11 @@ async def create_booking(
     # Check time validity
     if request.end_time <= request.start_time:
         raise BadRequestException(detail="End time must be after start time")
+
+    # Check booking date is not in the past
+    today = date.today()
+    if request.booking_date < today:
+        raise BadRequestException(detail="Cannot create bookings for past dates")
 
     # Check for time conflicts
     conflict_query = select(Booking).where(

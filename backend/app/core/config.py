@@ -30,10 +30,5 @@ class Settings(BaseSettings):
         """Asynchronous database URL for SQLAlchemy (using asyncpg)"""
         return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
 
-    class Config:
-        case_sensitive = True
-        env_file = ".env"
-
-
     
 settings = Settings()

@@ -33,12 +33,12 @@ import type { UserResponse } from '@/schemas/api';
  * ```
  */
 export function useRequireAdmin(): UserResponse | null {
-  const { user, isAuthenticated, isAdmin, loading } = useAuth();
+  const { user, isAuthenticated, isAdmin, initializing } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
     // Wait for auth to initialize
-    if (loading) {
+    if (initializing) {
       return;
     }
 
@@ -52,10 +52,10 @@ export function useRequireAdmin(): UserResponse | null {
     if (isAuthenticated && !isAdmin) {
       router.push('/');
     }
-  }, [isAuthenticated, isAdmin, loading, router]);
+  }, [isAuthenticated, isAdmin, initializing, router]);
 
-  // Return null while loading or redirecting
-  if (loading || !isAuthenticated || !isAdmin) {
+  // Return null while initializing or redirecting
+  if (initializing || !isAuthenticated || !isAdmin) {
     return null;
   }
 

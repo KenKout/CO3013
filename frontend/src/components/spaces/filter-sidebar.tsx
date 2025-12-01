@@ -1,9 +1,13 @@
 "use client"
 
+import type { UtilityResponse } from "@/schemas/api"
+
 interface FilterSidebarProps {
   building: string
   capacity: string
   utility: string
+  buildings: string[]
+  utilities: UtilityResponse[]
   onBuildingChange: (value: string) => void
   onCapacityChange: (value: string) => void
   onUtilityChange: (value: string) => void
@@ -14,6 +18,8 @@ export function FilterSidebar({
   building,
   capacity,
   utility,
+  buildings,
+  utilities,
   onBuildingChange,
   onCapacityChange,
   onUtilityChange,
@@ -41,9 +47,11 @@ export function FilterSidebar({
             className="w-full px-3 py-2.5 rounded-lg border-none bg-muted text-foreground font-medium focus:outline-none focus:ring-2 focus:ring-primary"
           >
             <option value="all">All Buildings</option>
-            <option value="a">Building A</option>
-            <option value="b">Building B</option>
-            <option value="c">Building C</option>
+            {buildings.map((b) => (
+              <option key={b} value={b}>
+                {b}
+              </option>
+            ))}
           </select>
         </div>
 
@@ -70,14 +78,19 @@ export function FilterSidebar({
           <label htmlFor="utility" className="block mb-2 font-bold text-sm text-muted-foreground">
             Utility
           </label>
-          <input
-            type="text"
+          <select
             id="utility"
             value={utility}
             onChange={(e) => onUtilityChange(e.target.value)}
-            placeholder="Outlet, WIFI"
-            className="w-full px-3 py-2.5 rounded-lg border-none bg-muted text-foreground placeholder:text-muted-foreground font-medium focus:outline-none focus:ring-2 focus:ring-primary"
-          />
+            className="w-full px-3 py-2.5 rounded-lg border-none bg-muted text-foreground font-medium focus:outline-none focus:ring-2 focus:ring-primary"
+          >
+            <option value="">All Utilities</option>
+            {utilities.map((u) => (
+              <option key={u.id} value={u.key}>
+                {u.label}
+              </option>
+            ))}
+          </select>
         </div>
 
         {/* Sort Button */}

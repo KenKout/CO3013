@@ -28,5 +28,7 @@ class AddPenaltyRequest(BaseModel):
 
 
 class UpdatePenaltyRequest(BaseModel):
-    """Request schema for updating penalty status."""
-    status: PenaltyStatus
+    """Request schema for updating a penalty."""
+    reason: str | None = Field(default=None, min_length=1)
+    points: int | None = Field(default=None, ge=1, le=50)
+    status: PenaltyStatus | None = None

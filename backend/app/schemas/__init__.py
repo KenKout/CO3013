@@ -22,6 +22,7 @@ from app.schemas.space import (
     UtilityResponse,
     CreateUtilityRequest,
     UpdateUtilityRequest,
+    SpaceFilterConfigResponse,
 )
 from app.schemas.booking import (
     BookingResponse,
@@ -36,6 +37,7 @@ from app.schemas.penalty import (
 from app.schemas.rating import (
     RatingResponse,
     AddRatingRequest,
+    UpdateRatingRequest,
 )
 
 __all__ = [
@@ -60,6 +62,7 @@ __all__ = [
     "UtilityResponse",
     "CreateUtilityRequest",
     "UpdateUtilityRequest",
+    "SpaceFilterConfigResponse",
     # Booking
     "BookingResponse",
     "CreateBookingRequest",
@@ -71,4 +74,5 @@ __all__ = [
     # Rating
     "RatingResponse",
     "AddRatingRequest",
+    "UpdateRatingRequest",
 ]

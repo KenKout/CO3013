@@ -32,12 +32,12 @@ import type { UserResponse } from '@/schemas/api';
  * ```
  */
 export function useRequireAuth(): UserResponse | null {
-  const { user, isAuthenticated, loading } = useAuth();
+  const { user, isAuthenticated, initializing } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
     // Wait for auth to initialize
-    if (loading) {
+    if (initializing) {
       return;
     }
 
@@ -45,10 +45,10 @@ export function useRequireAuth(): UserResponse | null {
     if (!isAuthenticated) {
       router.push('/auth');
     }
-  }, [isAuthenticated, loading, router]);
+  }, [isAuthenticated, initializing, router]);
 
-  // Return null while loading or redirecting
-  if (loading || !isAuthenticated) {
+  // Return null while initializing or redirecting
+  if (initializing || !isAuthenticated) {
     return null;
   }
 

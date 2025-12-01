@@ -10,9 +10,11 @@ import { AdminUserList } from "./admin-user-list"
 import { AdminReservationList } from "./admin-reservation-list"
 import { AdminPenaltiesList } from "./admin-penalties-list"
 import { AdminRatingsList } from "./admin-ratings-list"
+import { AdminUtilitiesList } from "./admin-utilities-list"
 import { SpaceFormModal } from "./space-form-modal"
 import { UserDetailsModal } from "./user-details-modal"
 import { AddPenaltyModal, AddRatingModal } from "./penalty-rating-modals"
+import { UtilityFormModal } from "./utility-form-modal"
 import { toast } from "sonner"
 import { useRequireAdmin } from "@/hooks/useRequireAdmin"
 import { adminApi } from "@/lib/admin"
@@ -34,10 +36,12 @@ import {
   PenaltyStatus,
   type CreateSpaceRequest,
   type UpdateSpaceRequest,
+  type CreateUtilityRequest,
+  type UpdateUtilityRequest,
   type AdminUserSummaryResponse,
 } from "@/schemas/api"
 
-type TabType = "spaces" | "users" | "reservations" | "penalties" | "ratings"
+type TabType = "spaces" | "users" | "reservations" | "penalties" | "ratings" | "utilities"
 
 export function AdminPage() {
   const admin = useRequireAdmin()
@@ -49,7 +53,8 @@ export function AdminPage() {
   const [reservations, setReservations] = useState<BookingResponse[]>([])
   const [penalties, setPenalties] = useState<PenaltyResponse[]>([])
   const [ratings, setRatings] = useState<RatingResponse[]>([])
-  const [utilities, setUtilities] = useState<UtilityResponse[]>([])
+  const [utilities, setUtilities] = useState<UtilityResponse[]>([]) // For space form
+  const [utilitiesList, setUtilitiesList] = useState<UtilityResponse[]>([]) // For utilities tab
 
   // Pagination states
   const [spacesPage, setSpacesPage] = useState(0)
@@ -57,6 +62,7 @@ export function AdminPage() {
   const [reservationsPage, setReservationsPage] = useState(0)
   const [penaltiesPage, setPenaltiesPage] = useState(0)
   const [ratingsPage, setRatingsPage] = useState(0)
+  const [utilitiesPage, setUtilitiesPage] = useState(0)
 
   const [itemsPerPage, setItemsPerPage] = useState(20)
 
@@ -66,6 +72,7 @@ export function AdminPage() {
   const [reservationsTotal, setReservationsTotal] = useState(0)
   const [penaltiesTotal, setPenaltiesTotal] = useState(0)
   const [ratingsTotal, setRatingsTotal] = useState(0)
+  const [utilitiesTotal, setUtilitiesTotal] = useState(0)
 
   // Search states
   const [spacesSearch, setSpacesSearch] = useState("")
@@ -73,6 +80,7 @@ export function AdminPage() {
   const [reservationsSearch, setReservationsSearch] = useState("")
   const [penaltiesSearch, setPenaltiesSearch] = useState("")
   const [ratingsSearch, setRatingsSearch] = useState("")
+  const [utilitiesSearch, setUtilitiesSearch] = useState("")
 
   // Filter states
   const [spacesStatusFilter, setSpacesStatusFilter] = useState<SpaceStatus | "all">("all")
@@ -88,10 +96,12 @@ export function AdminPage() {
   const [isPenaltyModalOpen, setIsPenaltyModalOpen] = useState(false)
   const [isRatingModalOpen, setIsRatingModalOpen] = useState(false)
   const [targetUserId, setTargetUserId] = useState<number>(0)
+  const [isUtilityModalOpen, setIsUtilityModalOpen] = useState(false)
+  const [editingUtility, setEditingUtility] = useState<UtilityResponse | null>(null)
 
-  // Fetch utilities on mount
+  // Fetch utilities for space form (on mount)
   useEffect(() => {
-    const fetchUtilities = async () => {
+    const fetchUtilitiesForSpaces = async () => {
       try {
         const data = await utilitiesApi.list()
         setUtilities(data)
@@ -99,8 +109,33 @@ export function AdminPage() {
         console.error("Failed to fetch utilities:", error)
       }
     }
-    fetchUtilities()
+    fetchUtilitiesForSpaces()
   }, [])
+
+  // Fetch utilities for utilities tab
+  const fetchUtilitiesData = useCallback(async () => {
+    setLoading(true)
+    try {
+      const data = await utilitiesApi.list()
+      // Filter by search
+      const filtered = data.filter(u =>
+        !utilitiesSearch ||
+        u.label.toLowerCase().includes(utilitiesSearch.toLowerCase()) ||
+        u.key.toLowerCase().includes(utilitiesSearch.toLowerCase()) ||
+        u.description?.toLowerCase().includes(utilitiesSearch.toLowerCase())
+      )
+
+      // Paginate
+      const start = utilitiesPage * itemsPerPage
+      const end = start + itemsPerPage
+      setUtilitiesList(filtered.slice(start, end))
+      setUtilitiesTotal(filtered.length)
+    } catch (error: any) {
+      toast.error(error.message || "Failed to fetch utilities")
+    } finally {
+      setLoading(false)
+    }
+  }, [utilitiesPage, itemsPerPage, utilitiesSearch])
 
   // Fetch spaces
   const fetchSpaces = useCallback(async () => {
@@ -211,8 +246,11 @@ export function AdminPage() {
       case "ratings":
         fetchRatings()
         break
+      case "utilities":
+        fetchUtilitiesData()
+        break
     }
-  }, [activeTab, fetchSpaces, fetchUsers, fetchReservations, fetchPenalties, fetchRatings])
+  }, [activeTab, fetchSpaces, fetchUsers, fetchReservations, fetchPenalties, fetchRatings, fetchUtilitiesData])
 
   // Space handlers
   const handleAddSpace = () => {
@@ -397,12 +435,58 @@ export function AdminPage() {
     }
   }
 
+  // Utility handlers
+  const handleAddUtility = () => {
+    setEditingUtility(null)
+    setIsUtilityModalOpen(true)
+  }
+
+  const handleEditUtility = (utility: UtilityResponse) => {
+    setEditingUtility(utility)
+    setIsUtilityModalOpen(true)
+  }
+
+  const handleSaveUtility = async (utilityData: CreateUtilityRequest | UpdateUtilityRequest) => {
+    try {
+      if (editingUtility) {
+        await utilitiesApi.update(editingUtility.id, utilityData as UpdateUtilityRequest)
+        toast.success("Utility updated successfully")
+      } else {
+        await utilitiesApi.create(utilityData as CreateUtilityRequest)
+        toast.success("Utility created successfully")
+      }
+      setIsUtilityModalOpen(false)
+      fetchUtilitiesData()
+      // Also refresh utilities list for space form
+      const data = await utilitiesApi.list()
+      setUtilities(data)
+    } catch (error: any) {
+      toast.error(error.message || "Failed to save utility")
+    }
+  }
+
+  const handleDeleteUtility = async (id: number) => {
+    if (!confirm("Are you sure you want to delete this utility? Spaces using this utility will still reference it.")) return
+
+    try {
+      await utilitiesApi.delete(id)
+      toast.success("Utility deleted successfully")
+      fetchUtilitiesData()
+      // Also refresh utilities list for space form
+      const data = await utilitiesApi.list()
+      setUtilities(data)
+    } catch (error: any) {
+      toast.error(error.message || "Failed to delete utility")
+    }
+  }
+
   const tabs = [
     { id: "spaces" as TabType, label: "Spaces", icon: "🏢" },
     { id: "users" as TabType, label: "Users", icon: "👥" },
     { id: "reservations" as TabType, label: "Reservations", icon: "📅" },
     { id: "penalties" as TabType, label: "Penalties", icon: "⚠️" },
-    { id: "ratings" as TabType, label: "Ratings", icon: "⭐" }
+    { id: "ratings" as TabType, label: "Ratings", icon: "⭐" },
+    { id: "utilities" as TabType, label: "Utilities", icon: "🔧" }
   ]
 
   // Protect the page - show loading while checking auth
@@ -439,7 +523,7 @@ export function AdminPage() {
                 Admin Dashboard
               </h1>
               <p className="text-lg md:text-xl font-light text-white/90 max-w-[600px] mx-auto">
-                Manage spaces, users, reservations, penalties, and ratings
+                Manage spaces, users, reservations, penalties, ratings, and utilities
               </p>
             </div>
           </div>
@@ -713,6 +797,50 @@ export function AdminPage() {
               )}
             </>
           )}
+
+          {/* Utilities Tab */}
+          {activeTab === "utilities" && (
+            <>
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                <h2 className="text-2xl font-bold">Manage Utilities</h2>
+                <button
+                  onClick={handleAddUtility}
+                  className="px-5 py-2.5 rounded-lg font-bold transition-all duration-300 bg-foreground text-background border-2 border-foreground hover:bg-background hover:text-foreground"
+                >
+                  + Add Utility
+                </button>
+              </div>
+              <div className="mb-6">
+                <SearchBar
+                  onSearch={(query) => {
+                    setUtilitiesSearch(query)
+                    setUtilitiesPage(0)
+                  }}
+                  placeholder="Search utilities by key, label, or description..."
+                />
+              </div>
+              {loading ? (
+                <div className="text-center py-10">
+                  <p className="text-muted-foreground">Loading...</p>
+                </div>
+              ) : (
+                <>
+                  <AdminUtilitiesList
+                    utilities={utilitiesList}
+                    onEdit={handleEditUtility}
+                    onDelete={handleDeleteUtility}
+                  />
+                  <Pagination
+                    currentPage={utilitiesPage + 1}
+                    totalPages={Math.ceil(utilitiesTotal / itemsPerPage)}
+                    onPageChange={(page) => setUtilitiesPage(page - 1)}
+                    itemsPerPage={itemsPerPage}
+                    onItemsPerPageChange={setItemsPerPage}
+                  />
+                </>
+              )}
+            </>
+          )}
         </div>
       </main>
 
@@ -752,6 +880,15 @@ export function AdminPage() {
           isOpen={isRatingModalOpen}
           onClose={() => setIsRatingModalOpen(false)}
           onSave={handleAddRating}
+        />
+      )}
+
+      {isUtilityModalOpen && (
+        <UtilityFormModal
+          isOpen={isUtilityModalOpen}
+          onClose={() => setIsUtilityModalOpen(false)}
+          onSave={handleSaveUtility}
+          utility={editingUtility}
         />
       )}
     </div>

@@ -13,6 +13,7 @@ from app.schemas import (
     SpaceResponse,
     CreateSpaceRequest,
     UpdateSpaceRequest,
+    SpaceFilterConfigResponse,
 )
 from app.schemas.common import PaginatedResponse, PaginatedResponseMeta
 
@@ -75,6 +76,27 @@ async def list_spaces(
     return PaginatedResponse(
         data=[SpaceResponse.from_orm_with_utilities(s) for s in spaces],
         meta=PaginatedResponseMeta(total=total, limit=limit, offset=offset)
+    )
+
+
+@router.get("/config/filters", response_model=SpaceFilterConfigResponse)
+async def get_filter_config(
+    db: Annotated[AsyncSession, Depends(get_async_db)]
+):
+    """Get available filter options (buildings and floors) from existing spaces."""
+    # Get distinct buildings
+    buildings_query = select(Space.building).distinct().order_by(Space.building)
+    buildings_result = await db.execute(buildings_query)
+    buildings = [b for b in buildings_result.scalars().all() if b]
+
+    # Get distinct floors
+    floors_query = select(Space.floor).distinct().order_by(Space.floor)
+    floors_result = await db.execute(floors_query)
+    floors = [f for f in floors_result.scalars().all() if f]
+
+    return SpaceFilterConfigResponse(
+        buildings=buildings,
+        floors=floors
     )
 
 

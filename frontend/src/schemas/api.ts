@@ -248,6 +248,11 @@ export interface SpaceListParams {
   status?: SpaceStatus; // default: active only
 }
 
+export interface SpaceFilterConfigResponse {
+  buildings: string[];
+  floors: string[];
+}
+
 // Utility Requests
 export interface CreateUtilityRequest {
   key: string;

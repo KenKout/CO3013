@@ -22,3 +22,9 @@ class AddRatingRequest(BaseModel):
     booking_id: int | None = None
     rating: int = Field(ge=1, le=5)
     comment: str | None = None
+
+
+class UpdateRatingRequest(BaseModel):
+    """Request schema for updating a rating."""
+    rating: int = Field(ge=1, le=5)
+    comment: str | None = None
