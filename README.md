@@ -79,8 +79,8 @@ co3103/
    # Using Makefile (recommended)
    make init
 
-   # Or using docker-compose directly
-   docker-compose up -d --build
+   # Or using docker compose directly
+   docker compose up -d --build
    ```
 
 4. **Access the application**
@@ -97,8 +97,8 @@ For development with hot reload:
 # Using Makefile
 make dev
 
-# Or using docker-compose directly
-docker-compose -f docker-compose.dev.yml up --build
+# Or using docker compose directly
+docker compose -f docker compose.dev.yml up --build
 ```
 
 ## Common Commands
@@ -233,21 +233,21 @@ Create a new migration:
 ```bash
 make migrate-create
 # Or directly:
-docker-compose exec backend alembic revision --autogenerate -m "description"
+docker compose exec backend alembic revision --autogenerate -m "description"
 ```
 
 Apply migrations:
 ```bash
 make migrate
 # Or directly:
-docker-compose exec backend alembic upgrade head
+docker compose exec backend alembic upgrade head
 ```
 
 Rollback:
 ```bash
 make migrate-rollback
 # Or directly:
-docker-compose exec backend alembic downgrade -1
+docker compose exec backend alembic downgrade -1
 ```
 
 ### Backup and Restore
@@ -313,11 +313,11 @@ The pipeline runs automatically on:
 
 ```bash
 # Using specific environment file
-docker-compose --env-file .env.production up -d
+docker compose --env-file .env.production up -d
 
 # Or copy to .env
 cp .env.production .env
-docker-compose up -d
+docker compose up -d
 ```
 
 ## Troubleshooting
@@ -326,19 +326,19 @@ docker-compose up -d
 
 If ports are already in use:
 1. Stop conflicting services
-2. Or modify ports in `.env` and `docker-compose.yml`
+2. Or modify ports in `.env` and `docker compose.yml`
 
 ### Database Connection Issues
 
 ```bash
 # Check database status
-docker-compose ps db
+docker compose ps db
 
 # View database logs
-docker-compose logs db
+docker compose logs db
 
 # Verify connection from backend
-docker-compose exec backend env | grep POSTGRES
+docker compose exec backend env | grep POSTGRES
 ```
 
 ### Clear Everything
@@ -348,7 +348,7 @@ docker-compose exec backend env | grep POSTGRES
 make clean
 
 # Or manually
-docker-compose down -v
+docker compose down -v
 docker system prune -a --volumes
 ```
 
@@ -360,7 +360,7 @@ In Docker environment:
 
 Check Nginx logs:
 ```bash
-docker-compose logs nginx
+docker compose logs nginx
 ```
 
 ## Testing
