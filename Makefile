@@ -1,4 +1,4 @@
-.PHONY: help build up down restart logs clean test migrate db-shell backend-shell frontend-shell dev dev-down
+.PHONY: help build up down restart logs clean test test-backend-setup test-backend test-backend-local test-frontend migrate db-shell backend-shell frontend-shell dev dev-down
 
 # Default target
 help:
@@ -25,9 +25,11 @@ help:
 	@echo "  make frontend-shell - Access frontend container shell"
 	@echo ""
 	@echo "Testing:"
-	@echo "  make test           - Run all tests"
-	@echo "  make test-backend   - Run backend tests"
-	@echo "  make test-frontend  - Run frontend tests"
+	@echo "  make test               - Run all tests"
+	@echo "  make test-backend-setup - Set up test database"
+	@echo "  make test-backend       - Run backend tests (in Docker)"
+	@echo "  make test-backend-local - Run backend tests (locally)"
+	@echo "  make test-frontend      - Run frontend tests"
 
 # Production Commands
 build:
@@ -88,7 +90,16 @@ frontend-shell:
 # Testing
 test: test-backend test-frontend
 
+test-backend-setup:
+	@echo "Setting up test database..."
+	docker-compose exec backend python scripts/setup_test_db.py
+
 test-backend:
+	@echo "Running backend tests..."
+	docker-compose exec backend pytest tests/ -v
+
+test-backend-local:
+	@echo "Running backend tests locally (requires local Python environment)..."
 	cd backend && pytest tests/ -v
 
 test-frontend:
