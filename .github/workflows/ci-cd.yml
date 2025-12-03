@@ -206,16 +206,16 @@ jobs:
           EOF
 
       - name: Build and start services
-        run: docker-compose up -d --build
+        run: docker compose up -d --build
 
       - name: Wait for services to be healthy
         run: |
           echo "Waiting for services to start..."
           sleep 30
-          docker-compose ps
+          docker compose ps
 
           echo "Waiting for database to be ready..."
-          timeout 60 bash -c 'until docker-compose exec -T db pg_isready -U postgres; do sleep 2; done'
+          timeout 60 bash -c 'until docker compose exec -T db pg_isready -U postgres; do sleep 2; done'
 
           echo "Waiting for backend to be healthy..."
           timeout 60 bash -c 'until curl -f http://localhost:8000/health; do sleep 2; done'
@@ -223,7 +223,7 @@ jobs:
           echo "All services are ready!"
 
       - name: Run database migrations
-        run: docker-compose exec -T backend alembic upgrade head
+        run: docker compose exec -T backend alembic upgrade head
 
       - name: Check backend health
         run: |
@@ -240,8 +240,8 @@ jobs:
 
       - name: Show logs on failure
         if: failure()
-        run: docker-compose logs
+        run: docker compose logs
 
       - name: Cleanup
         if: always()
-        run: docker-compose down -v
+        run: docker compose down -v

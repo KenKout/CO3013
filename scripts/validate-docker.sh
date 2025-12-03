@@ -24,8 +24,8 @@ fi
 # Check if Docker Compose is installed
 echo ""
 echo "2. Checking Docker Compose installation..."
-if command -v docker-compose &> /dev/null; then
-    echo -e "${GREEN}✓${NC} Docker Compose is installed: $(docker-compose --version)"
+if command -v docker compose &> /dev/null; then
+    echo -e "${GREEN}✓${NC} Docker Compose is installed: $(docker compose --version)"
 else
     echo -e "${RED}✗${NC} Docker Compose is not installed"
     exit 1
@@ -70,14 +70,14 @@ for file in "${files[@]}"; do
     fi
 done
 
-# Validate docker-compose.yml
+# Validate docker- compose.yml
 echo ""
 echo "5. Validating docker-compose.yml..."
-if docker-compose config > /dev/null 2>&1; then
+if docker compose config > /dev/null 2>&1; then
     echo -e "${GREEN}✓${NC} docker-compose.yml is valid"
 else
     echo -e "${RED}✗${NC} docker-compose.yml has errors"
-    docker-compose config
+    docker compose config
     exit 1
 fi
 

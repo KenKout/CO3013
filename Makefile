@@ -33,70 +33,70 @@ help:
 
 # Production Commands
 build:
-	docker-compose build
+	docker compose build
 
 up:
-	docker-compose up -d
+	docker compose up -d
 
 down:
-	docker-compose down
+	docker compose down
 
 restart:
-	docker-compose restart
+	docker compose restart
 
 logs:
-	docker-compose logs -f
+	docker compose logs -f
 
 clean:
-	docker-compose down -v
+	docker compose down -v
 	@echo "Removed all containers and volumes"
 
 # Development Commands
 dev:
-	docker-compose -f docker-compose.dev.yml up --build
+	docker compose -f docker-compose.dev.yml up --build
 
 dev-down:
-	docker-compose -f docker-compose.dev.yml down
+	docker compose -f docker-compose.dev.yml down
 
 # Database Commands
 migrate:
-	docker-compose exec backend alembic upgrade head
+	docker compose exec backend alembic upgrade head
 
 migrate-create:
 	@read -p "Enter migration message: " msg; \
-	docker-compose exec backend alembic revision --autogenerate -m "$$msg"
+	docker compose exec backend alembic revision --autogenerate -m "$$msg"
 
 migrate-rollback:
-	docker-compose exec backend alembic downgrade -1
+	docker compose exec backend alembic downgrade -1
 
 db-shell:
-	docker-compose exec db psql -U postgres -d study_space
+	docker compose exec db psql -U postgres -d study_space
 
 db-backup:
-	docker-compose exec db pg_dump -U postgres study_space > backup_$$(date +%Y%m%d_%H%M%S).sql
+	docker compose exec db pg_dump -U postgres study_space > backup_$$(date +%Y%m%d_%H%M%S).sql
 	@echo "Database backup created"
 
 db-restore:
 	@read -p "Enter backup file path: " file; \
-	cat $$file | docker-compose exec -T db psql -U postgres study_space
+	cat $$file | docker compose exec -T db psql -U postgres study_space
 
 # Shell Access
 backend-shell:
-	docker-compose exec backend bash
+	docker compose exec backend bash
 
 frontend-shell:
-	docker-compose exec frontend sh
+	docker compose exec frontend sh
 
 # Testing
 test: test-backend test-frontend
 
 test-backend-setup:
 	@echo "Setting up test database..."
-	docker-compose exec backend python scripts/setup_test_db.py
+	docker compose exec backend python scripts/setup_test_db.py
 
 test-backend:
 	@echo "Running backend tests..."
-	docker-compose exec backend pytest tests/ -v
+	docker compose exec backend pytest tests/ -v
 
 test-backend-local:
 	@echo "Running backend tests locally (requires local Python environment)..."
@@ -114,7 +114,7 @@ health:
 
 # Status
 status:
-	docker-compose ps
+	docker compose ps
 
 # Environment Setup
 setup:
