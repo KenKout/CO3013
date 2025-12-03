@@ -115,6 +115,11 @@ setup:
 		echo ".env file already exists"; \
 	fi
 
+# Validate Docker setup
+validate:
+	@chmod +x scripts/validate-docker.sh
+	@./scripts/validate-docker.sh
+
 # Full Setup (for first time)
 init: setup build up migrate
 	@echo ""
