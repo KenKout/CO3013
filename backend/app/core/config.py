@@ -19,6 +19,10 @@ class Settings(BaseSettings):
     POSTGRES_HOST: str = "localhost"
     POSTGRES_PORT: int = 5432
     POSTGRES_DB: str = "study_space"
+
+
+    IOT_SERVER_URL: str = "https://doantonghopiot.namanhishere.com"  
+    IOT_API_TOKEN: str = "coconut"
     
     @property
     def DATABASE_URL(self) -> str:

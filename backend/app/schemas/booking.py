@@ -27,6 +27,7 @@ class BookingResponse(BaseModel):
     check_out_at: datetime | None = None
     space: SpaceResponse | None = None
     user: UserSummaryResponse | None = None
+    iot_session_id: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -51,6 +52,8 @@ class BookingResponse(BaseModel):
                 total_bookings=len(booking.user.bookings) if booking.user.bookings else 0,
             )
 
+        # print("iot_session_id in BookingResponse:", booking.iot_session_id)
+
         return cls(
             id=booking.id,
             user_id=booking.user_id,
@@ -70,6 +73,9 @@ class BookingResponse(BaseModel):
             check_out_at=booking.check_out_at,
             space=space_response,
             user=user_response,
+
+            #IOT session ID
+            iot_session_id=booking.iot_session_id,
         )
 
 

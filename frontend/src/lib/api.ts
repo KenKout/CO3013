@@ -5,7 +5,7 @@ import type { ApiError } from '@/schemas/api';
 // Configuration
 // ============================================================================
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://192.168.1.102:8010';
 const TOKEN_KEY = 'access_token';
 
 // ============================================================================

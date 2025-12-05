@@ -15,7 +15,8 @@ export interface Booking {
   location: string
   attendees: number
   utilities: string[]
-  purpose?: string
+  purpose?: string,
+  iot_session_id?: string,
 }
 
 interface BookingCardProps {

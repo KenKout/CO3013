@@ -71,4 +71,8 @@ export const bookingsApi = {
   checkOut: async (bookingId: number): Promise<BookingResponse> => {
     return api.post<BookingResponse>(`/bookings/${bookingId}/check-out`, undefined, true);
   },
+
+  // openDoor: async (bookingId: number): Promise<void> => {
+  //   return api.post<void>(`/bookings/${bookingId}/open-door`, undefined, true);
+  // }
 };
