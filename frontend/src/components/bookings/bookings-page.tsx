@@ -30,6 +30,7 @@ const convertBookingToDisplay = (apiBooking: BookingResponse): Booking => {
     attendees: apiBooking.attendees,
     utilities: space?.utilities || [],
     purpose: apiBooking.purpose,
+    iot_session_id: apiBooking.iot_session_id? apiBooking.iot_session_id : undefined,
   }
 }
 

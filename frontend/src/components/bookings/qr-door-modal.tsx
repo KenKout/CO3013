@@ -1,8 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef, useEffect } from "react"
 import Image from "next/image"
 import type { Booking } from "./booking-card"
+import { api } from "@/lib/api"
 
 interface QRDoorModalProps {
   booking: Booking | null
@@ -12,20 +13,57 @@ interface QRDoorModalProps {
 
 export function QRDoorModal({ booking, isOpen, onClose }: QRDoorModalProps) {
   const [isDoorUnlocked, setIsDoorUnlocked] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  
+  // Ref to store the timer ID so we can clear it if the modal closes
+  const timerRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Cleanup timer when component unmounts or modal closes
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current)
+    }
+  }, [])
 
   if (!isOpen || !booking) return null
 
-  // Generate QR code URL with booking data
-  const qrData = `BookingID: ${booking.id}\nRoom: ${booking.roomName}\nDate: ${booking.date}\nTime: ${booking.time}`
+  let qrData
+  if (!booking.iot_session_id) {
+    qrData = `BookingID: ${booking.id}\nRoom: ${booking.roomName}\nDate: ${booking.date}\nTime: ${booking.time}`
+  } else {
+    qrData = `${booking.iot_session_id}`
+  }
+
   const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(qrData)}`
 
-  const handleDoorToggle = () => {
-    setIsDoorUnlocked(!isDoorUnlocked)
-    console.log(`Simulating command: The door is now ${!isDoorUnlocked ? 'UNLOCKED' : 'LOCKED'}.`)
+  const handleUnlockDoor = async () => {
+    // If already unlocked or loading, do nothing
+    if (isDoorUnlocked || isLoading) return
+
+    setIsLoading(true)
+
+    await(async () => {
+      await api.post(`/bookings/${booking.id}/open-door`, undefined, true)
+    })()
+
+    setIsLoading(false)
+    setIsDoorUnlocked(true)
+    console.log("Door UNLOCKED. Waiting for auto-lock...")
+
+    // 2. Set Timer to Auto-Lock after 5 seconds
+    if (timerRef.current) clearTimeout(timerRef.current)
+    
+    timerRef.current = setTimeout(() => {
+      setIsDoorUnlocked(false)
+      console.log("Door AUTO-LOCKED.")
+    }, 3000) // 5 seconds duration
   }
 
   const handleClose = () => {
+    // Reset state when closing modal
+    if (timerRef.current) clearTimeout(timerRef.current)
     setIsDoorUnlocked(false)
+    setIsLoading(false)
     onClose()
   }
 
@@ -41,7 +79,7 @@ export function QRDoorModal({ booking, isOpen, onClose }: QRDoorModalProps) {
         {/* Modal Header */}
         <h2
           className="text-3xl font-bold mb-2"
-          style={{ fontFamily: 'var(--font-heading, Orbitron, sans-serif)' }}
+          style={{ fontFamily: "var(--font-heading, Orbitron, sans-serif)" }}
         >
           {booking.roomName}
         </h2>
@@ -62,12 +100,12 @@ export function QRDoorModal({ booking, isOpen, onClose }: QRDoorModalProps) {
 
         {/* Door Control Section */}
         <div className="border-t border-gray-200 pt-6 mt-6">
-          {/* Door Status */}
+          {/* Door Status Indicator */}
           <div
-            className={`flex items-center justify-center gap-2.5 mb-5 text-lg font-bold py-2.5 px-4 rounded-lg ${
+            className={`flex items-center justify-center gap-2.5 mb-5 text-lg font-bold py-2.5 px-4 rounded-lg transition-colors duration-300 ${
               isDoorUnlocked
-                ? "text-green-600 bg-green-50"
-                : "text-red-600 bg-red-50"
+                ? "text-green-600 bg-green-50 border border-green-100"
+                : "text-red-600 bg-red-50 border border-red-100"
             }`}
           >
             {isDoorUnlocked ? (
@@ -75,28 +113,43 @@ export function QRDoorModal({ booking, isOpen, onClose }: QRDoorModalProps) {
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
                 </svg>
-                <span>Status: Unlocked</span>
+                <span>Unlocked</span>
               </>
             ) : (
               <>
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                 </svg>
-                <span>Status: Locked</span>
+                <span>Locked</span>
               </>
             )}
           </div>
 
           {/* Door Control Button */}
           <button
-            onClick={handleDoorToggle}
-            className={`w-full py-4 px-6 text-lg font-bold rounded-lg mb-6 transition-colors ${
+            onClick={handleUnlockDoor}
+            disabled={isDoorUnlocked || isLoading}
+            className={`w-full py-4 px-6 text-lg font-bold rounded-lg mb-6 transition-all duration-200 flex items-center justify-center gap-2 ${
               isDoorUnlocked
-                ? "bg-amber-500 text-black hover:bg-amber-600"
-                : "bg-blue-600 text-white hover:bg-blue-700"
+                ? "bg-green-600 text-white cursor-default opacity-90" // Unlocked State
+                : isLoading 
+                  ? "bg-gray-400 text-white cursor-wait" // Loading State
+                  : "bg-blue-600 text-white hover:bg-blue-700 active:scale-[0.98]" // Locked State
             }`}
           >
-            {isDoorUnlocked ? "Lock Door" : "Unlock Door"}
+            {isLoading ? (
+               <>
+                 <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                 </svg>
+                 Processing...
+               </>
+            ) : isDoorUnlocked ? (
+              "Door is Open"
+            ) : (
+              "Tap to Unlock"
+            )}
           </button>
         </div>
 

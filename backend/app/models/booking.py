@@ -67,6 +67,9 @@ class Booking(Base):
     check_in_at: Mapped[Optional[datetime]] = mapped_column(sa.DateTime(timezone=True), nullable=True)
     check_out_at: Mapped[Optional[datetime]] = mapped_column(sa.DateTime(timezone=True), nullable=True)
 
+    #IOT session ID
+    iot_session_id: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
     # Relationships
     user: Mapped["User"] = relationship(
         "User",

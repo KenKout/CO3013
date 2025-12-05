@@ -115,6 +115,7 @@ export interface BookingResponse {
   check_out_at?: string | null;
   space?: SpaceResponse | null;
   user?: UserSummaryResponse | null;
+  iot_session_id?: string | null;
 }
 
 export interface BookingHistoryItem {

@@ -21,6 +21,8 @@ from app.schemas import (
 )
 from app.schemas.common import PaginatedResponse, PaginatedResponseMeta
 
+from app.core.iot import iot_service
+
 router = APIRouter()
 
 
@@ -214,6 +216,21 @@ async def update_booking(
         booking.approved_by = current_user.id
         booking.approved_at = datetime.now(timezone.utc)
 
+        if request.status == BookingStatus.APPROVED:
+            room_id = booking.space_id
+            
+            iot_response = await iot_service.create_session(
+                booking=booking,
+                room_id=room_id,
+            )
+            
+            if iot_response:
+                booking.iot_session_id = iot_response.get("qr_code")
+                valid_until_str = iot_response.get("valid_until")
+                if valid_until_str:
+                    from dateutil import parser
+                    booking.iot_session_valid_until = parser.isoparse(valid_until_str)
+
     await db.flush()
     await db.refresh(booking)
 
@@ -310,3 +327,44 @@ async def check_out_booking(
     await db.refresh(booking)
 
     return BookingResponse.from_orm_with_relations(booking)
+
+
+
+@router.post("/{booking_id}/open-door", status_code=status.HTTP_204_NO_CONTENT)
+async def open_door_booking(
+    booking_id: int,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    db: Annotated[AsyncSession, Depends(get_async_db)]
+):
+    """Trigger door open for a booking."""
+
+    print("tessting open door endpoint")    
+    query = select(Booking).where(Booking.id == booking_id).options(
+        selectinload(Booking.space).selectinload(Space.utilities),
+        selectinload(Booking.user)
+    )
+    result = await db.execute(query)
+    booking = result.scalar_one_or_none()
+
+    if not booking:
+        raise NotFoundException(detail="Booking not found")
+
+    is_admin = current_user.role == UserRole.ADMIN
+    is_owner = booking.user_id == current_user.id
+
+    if not is_admin and not is_owner:
+        raise ForbiddenException(detail="Not allowed to open door for this booking")
+
+    if booking.status != BookingStatus.APPROVED:
+        raise BadRequestException(detail="Can only open door for approved bookings")
+
+    if not booking.iot_session_id:
+        raise BadRequestException(detail="No IoT session associated with this booking")
+
+    # success = await iot_service.trigger_door_open(booking.iot_session_id)
+    success = await iot_service.trigger_door_open(str(booking.space_id))
+
+    if not success:
+        raise BadRequestException(detail="Failed to trigger door open")
+
+    return
